@@ -35,13 +35,13 @@
       <li>Nadie más puede leerlo, ni siquiera los creadores de Escudo.</li>
     </ul>
     <form id="form-setup" class="card">
-      <label>Crea una contraseña (mínimo 6 caracteres)
-        <input name="p1" type="password" autocomplete="off" required minlength="6">
+      <label>Crea una contraseña (mínimo 8 caracteres)
+        <input name="p1" type="password" autocomplete="off" required minlength="8">
       </label>
       <label>Repítela
-        <input name="p2" type="password" autocomplete="off" required minlength="6">
+        <input name="p2" type="password" autocomplete="off" required minlength="8">
       </label>
-      <p class="hint">Si la olvidas no se puede recuperar. Usa una frase que no tenga que ver con tu nombre, DNI ni fecha de nacimiento.</p>
+      <p class="hint">Si la olvidas no se puede recuperar. Lo más seguro y fácil de recordar: tres palabras sin relación, por ejemplo <i>perro azul ventana</i>. No uses tu nombre, DNI, fecha de nacimiento ni el PIN del celular.</p>
       <button type="submit" class="primary">Crear mi bitácora</button>
     </form>
     <p><a href="#" data-goto="help">¿Qué hago si me están extorsionando?</a></p>
@@ -83,7 +83,19 @@
   <!-- Abierto -->
   <main id="view-app" class="view" hidden>
     <p id="trip-banner" class="box warn" hidden></p>
+    <div id="case-banner" class="box warn stack" hidden></div>
     <p id="backup-banner" class="box warn" hidden></p>
+    <section id="urgent" class="box err stack" role="alert" hidden>
+      <h2>Esta amenaza es grave: protégete hoy</h2>
+      <p id="urgent-why"></p>
+      <a class="big-call" href="tel:105">Llamar al 105 (Policía)</a>
+      <button type="button" data-action="urgent-sos">Avisar a mi familia (SOS)</button>
+      <button type="button" data-action="urgent-trip">Activar aviso de trayecto</button>
+      <button type="button" data-action="urgent-complaint">Denunciar hoy y pedir protección urgente</button>
+      <button type="button" data-action="anchor-urgent">Enviar la huella de mi bitácora a alguien de confianza</button>
+      <p class="hint small">Recuerda a tu familia la palabra clave y no salgan solos a la hora del "plazo".</p>
+      <button type="button" data-action="urgent-close">Cerrar</button>
+    </section>
     <nav class="tabs" role="tablist">
       <button type="button" role="tab" aria-controls="tab-new" data-tab="new" aria-selected="true">Registrar</button>
       <button type="button" role="tab" aria-controls="tab-log" data-tab="log">Bitácora</button>
@@ -98,7 +110,7 @@
       <p class="hint">Registra cada mensaje o llamada por separado, apenas ocurra.</p>
       <div class="card stack" id="live-call">
         <button type="button" class="primary" data-action="live-call">📞 Me están llamando ahora</button>
-        <p class="hint small">Pon la llamada en altavoz y toca "Grabar audio": la voz sirve para la pericia. No negocies ni muestres miedo; anota el número y lo que exigen.</p>
+        <p class="hint small">Pon la llamada en altavoz y toca "Grabar audio": la voz sirve para la pericia. Muchos celulares no dejan grabar durante una llamada; si es así, Escudo te avisará y conviene grabar con otro celular junto al altavoz. No negocies ni muestres miedo; anota el número, la hora, cómo habla y lo que exigen.</p>
       </div>
       <details class="card" id="wa-card">
         <summary><b>Importar un chat de WhatsApp</b> (rápido y más completo)</summary>
@@ -111,6 +123,10 @@
         <label>Chat exportado <input id="wa-files" type="file" multiple accept=".txt,.zip,text/plain,application/zip,image/*,audio/*,video/*,application/pdf"></label>
         <div id="wa-step2" hidden>
           <p id="wa-summary" class="hint"></p>
+          <fieldset id="wa-order" class="authors" hidden><legend id="wa-order-q"></legend><div class="stack">
+            <button type="button" data-action="wa-order" data-orden="dia"></button>
+            <button type="button" data-action="wa-order" data-orden="mes"></button>
+          </div></fieldset>
           <fieldset id="wa-authors" class="authors"><legend>¿Quién te extorsiona? Marca su número o nombre</legend><div></div></fieldset>
           <button type="button" class="primary" data-action="wa-import">Importar a la bitácora</button>
         </div>
@@ -123,9 +139,14 @@
         <label>Número, perfil o persona que te contactó
           <input name="contacto" autocomplete="off" placeholder="Ej. 987 654 321 o @perfil">
         </label>
-        <label>¿Cuánto te exigen? (S/)
-          <input name="montoExigido" inputmode="decimal" autocomplete="off" placeholder="Ej. 2000">
-        </label>
+        <div class="row">
+          <label>¿Cuánto te exigen?
+            <input name="montoExigido" inputmode="decimal" autocomplete="off" placeholder="Ej. 2000">
+          </label>
+          <label>Moneda
+            <select name="moneda"><option value="PEN">Soles (S/)</option><option value="USD">Dólares (US$)</option></select>
+          </label>
+        </div>
         <div class="row">
           <label>¿Dónde quieren que pagues?
             <select name="medioPago"></select>
@@ -138,6 +159,20 @@
           <input name="titularCuenta" autocomplete="off" maxlength="120" placeholder="Ej. Jua* Pér*">
         </label>
         <p class="hint small">Al escribir el número o la cuenta en Yape, Plin o tu banco, la app suele mostrar el nombre del titular antes de pagar. Toma captura de esa pantalla, anota el nombre aquí y <b>no confirmes el pago</b>. Es un dato clave para la Fiscalía.</p>
+        <details id="pago-block" class="subcard">
+          <summary>Ya pagué (aunque sea una parte)</summary>
+          <p class="hint small">No te culpes: muchas personas pagan antes de denunciar. Anótalo y denuncia rápido: el pago deja rastro (cuenta que lo recibió, retiros, cajeros con cámaras) y es la mejor pista para la Fiscalía.</p>
+          <div class="row">
+            <label>Monto pagado <input name="pagoMonto" inputmode="decimal" autocomplete="off" placeholder="Ej. 500 o $ 200"></label>
+            <label>Fecha y hora del pago <input name="pagoFecha" type="datetime-local"></label>
+          </div>
+          <div class="row">
+            <label>Medio <select name="pagoMedio"></select></label>
+            <label>Cuenta a la que pagaste <input name="pagoCuenta" autocomplete="off"></label>
+          </div>
+          <label>N.° de operación (está en el comprobante) <input name="pagoOperacion" autocomplete="off" maxlength="40"></label>
+          <p class="hint small">Adjunta abajo la captura del comprobante.</p>
+        </details>
         <label>Copia el mensaje tal cual
           <textarea name="mensaje" rows="3"></textarea>
         </label>
@@ -170,6 +205,9 @@
       <nav class="jump" aria-label="Ir a">
         <a href="#form-complaint">⚖️ Denuncia</a>
         <a href="#form-bank">💸 Bloquear cuenta</a>
+        <a href="#form-line">📵 Bloquear línea</a>
+        <a href="#form-case">📁 Mi caso</a>
+        <a href="#ficha-card">🤝 Otras víctimas</a>
         <a href="#form-police">🚫 Si la Policía no actúa</a>
         <a href="#evidence-card">📦 Pruebas</a>
       </nav>
@@ -205,7 +243,20 @@
         </div>
         <label>Correo <input name="correo" type="email" autocomplete="off" maxlength="120"></label>
         <label class="inline"><input type="checkbox" name="reserva" checked> Pedir reserva de mi identidad (con clave o código)</label>
-        <label class="inline"><input type="checkbox" name="operativo"> Estoy dispuesto(a) a colaborar en un operativo controlado de la Policía (entrega vigilada) para capturarlos cuando cobren</label>
+        <label class="inline"><input type="checkbox" name="operativo"> Estoy dispuesto(a) a colaborar, bajo dirección de la Fiscalía y con protección policial, en el operativo que dispongan para capturarlos cuando cobren</label>
+        <label class="inline"><input type="checkbox" name="conservaTodo"> Conservo todos los mensajes originales (no borré ninguno)</label>
+        <label class="inline"><input type="checkbox" name="celularPericia"> Pongo mi celular a disposición para la pericia</label>
+        <label>¿Necesitas intérprete?
+          <select name="lengua">
+            <option value="">No, hablo castellano</option>
+            <option value="quechua">Quechua</option>
+            <option value="aimara">Aimara</option>
+            <option value="asháninka">Asháninka</option>
+            <option value="awajún">Awajún</option>
+            <option value="shipibo-konibo">Shipibo-konibo</option>
+            <option value="otra lengua originaria">Otra lengua originaria</option>
+          </select>
+        </label>
         <div class="stack">
           <button type="submit" class="primary">Ver escrito para imprimir y firmar</button>
           <button type="button" data-action="complaint-copy">Copiar escrito (para la denuncia en línea)</button>
@@ -229,6 +280,51 @@
         <label>N.° de denuncia o carpeta fiscal (si ya lo tienes) <input name="numeroDenuncia" autocomplete="off" maxlength="60"></label>
         <button type="submit">Descargar reporte para el banco</button>
       </form>
+
+      <form id="form-line" class="card">
+        <h2>📵 Bloquea la línea del extorsionador</h2>
+        <p class="hint">Con tu denuncia puedes pedir que suspendan la línea desde la que te amenazan y que bloqueen su celular (IMEI). Escudo arma la solicitud con los números que registraste como remitentes.</p>
+        <p class="hint small"><b>Antes, consúltalo con la Fiscalía o la Policía:</b> si bloquean la línea muy pronto, puede que ya no puedan ubicar al extorsionador.</p>
+        <label>N.° de denuncia o carpeta fiscal <input name="numeroDenuncia" autocomplete="off" maxlength="60"></label>
+        <button type="submit">Descargar solicitud de bloqueo</button>
+      </form>
+
+      <form id="form-case" class="card">
+        <h2>📁 Mi caso: no dejes que lo archiven</h2>
+        <p class="hint">Después de denunciar, anota aquí tu número de caso. Escudo te recordará pedir información, ampliar la denuncia si siguen las amenazas y apelar si lo archivan. Se guarda cifrado.</p>
+        <p id="case-status" class="hint small" aria-live="polite"></p>
+        <div class="row">
+          <label>¿Dónde denunciaste?
+            <select name="entidad"><option value="fiscalia">Fiscalía</option><option value="comisaria">Comisaría</option><option value="otra">Otra</option></select>
+          </label>
+          <label>N.° de denuncia o carpeta <input name="numero" autocomplete="off" maxlength="60" required></label>
+        </div>
+        <div class="row">
+          <label>Fecha en que denunciaste <input name="presentadaEn" type="date" required></label>
+          <label>Fiscalía o despacho (si lo sabes) <input name="despacho" autocomplete="off" maxlength="120"></label>
+        </div>
+        <label>Si te notificaron que lo archivaron, ¿cuándo? <input name="archivadoNotificadoEn" type="date"></label>
+        <div class="stack">
+          <button type="submit" class="primary">Guardar mi caso</button>
+          <button type="button" data-action="case-ampliacion">Ampliar mi denuncia con las amenazas nuevas</button>
+          <button type="button" data-action="case-status">Pedir información de mi caso</button>
+          <button type="button" data-action="case-elevacion">Apelar el archivo (elevación al Fiscal Superior)</button>
+          <button type="button" data-action="case-ics">Agregar recordatorio a mi calendario</button>
+        </div>
+      </form>
+
+      <div class="card stack" id="ficha-card">
+        <h2>🤝 ¿Amenazan a más personas con los mismos números?</h2>
+        <p class="hint">Si a tus vecinos, compañeros de ruta o del mercado los extorsionan los mismos, junten sus casos: la Fiscalía da más prioridad cuando ve varias víctimas. La ficha lleva <b>solo los números y cuentas del extorsionador</b>, nunca tus datos, mensajes ni pruebas.</p>
+        <p class="hint small">Compártela solo en persona con gente de confianza. Un número puede ser suplantado: una coincidencia es un indicio, no una prueba.</p>
+        <button type="button" data-action="ficha-make">Mostrar mi ficha (QR y archivo)</button>
+        <div id="ficha-out" class="stack"></div>
+        <label>Recibir la ficha de otra persona (archivo .escudo-ficha) <input id="ficha-file" type="file" accept=".escudo-ficha,application/json,text/plain"></label>
+        <button type="button" data-action="ficha-scan" hidden>Escanear su QR con la cámara</button>
+        <div id="ficha-scan-box"></div>
+        <p id="ficha-result" class="hint" aria-live="polite"></p>
+        <button type="button" data-action="ficha-clear" hidden>Borrar las fichas recibidas</button>
+      </div>
 
       <form id="form-police" class="card">
         <h2>🚫 Si la Policía no te hace caso</h2>
@@ -303,8 +399,8 @@
       </div>
       <form id="form-password" class="card">
         <h2>Cambiar contraseña</h2>
-        <label>Nueva contraseña <input name="p1" type="password" autocomplete="off" required minlength="6"></label>
-        <label>Repítela <input name="p2" type="password" autocomplete="off" required minlength="6"></label>
+        <label>Nueva contraseña <input name="p1" type="password" autocomplete="off" required minlength="8"></label>
+        <label>Repítela <input name="p2" type="password" autocomplete="off" required minlength="8"></label>
         <button type="submit">Cambiar</button>
       </form>
       <div class="card stack">
@@ -317,8 +413,8 @@
           <h2>Contraseña de emergencia</h2>
           <p class="hint">Si alguien te obliga a abrir Escudo, escribe esta otra contraseña: se abrirá una bitácora <b>vacía</b> y creíble, y tus pruebas reales quedan ocultas y a salvo.</p>
           <p id="duress-status" class="hint small" aria-live="polite"></p>
-          <label>Contraseña de emergencia <input name="p1" type="password" autocomplete="off" required minlength="6"></label>
-          <label>Repítela <input name="p2" type="password" autocomplete="off" required minlength="6"></label>
+          <label>Contraseña de emergencia <input name="p1" type="password" autocomplete="off" required minlength="8"></label>
+          <label>Repítela <input name="p2" type="password" autocomplete="off" required minlength="8"></label>
           <div class="stack">
             <button type="submit">Guardar contraseña de emergencia</button>
             <button type="button" data-action="duress-remove" hidden>Quitar contraseña de emergencia</button>
@@ -379,6 +475,9 @@
     <h2>Dónde denunciar</h2>
     <ul class="contacts"></ul>
     <p class="hint small">Números verificados el <span class="verified"></span>. Pueden cambiar; si alguno no funciona, acude a la comisaría más cercana.</p>
+    <h2>Pasa la voz</h2>
+    <p class="hint">Si a alguien de tu ruta, mercado o barrio también lo extorsionan, compártele Escudo. Es gratis, no pide datos y funciona sin internet después de abrirlo una vez.</p>
+    <button type="button" data-action="share-app">Compartir Escudo</button>
   </template>
 
   <footer class="foot">

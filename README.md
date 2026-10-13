@@ -82,7 +82,7 @@ Escudo **no rastrea la IP, la ubicación ni la identidad** de quien llama o escr
 ## Privacidad y seguridad
 
 - **No hay servidor.** Escudo es una página estática. Nada de lo que escribes sale del teléfono, salvo que tú descargues o compartas el informe o la copia.
-- **Cifrado:** la clave se deriva de tu contraseña con PBKDF2-SHA256 (210 000 iteraciones) y los datos se cifran con AES-GCM de 256 bits, usando la Web Crypto API del navegador. No hay dependencias externas.
+- **Cifrado:** la clave se deriva de tu contraseña con PBKDF2-SHA256 (600 000 iteraciones; contraseña mínima de 8 caracteres, no un número corto) y los datos se cifran con AES-GCM de 256 bits, usando la Web Crypto API del navegador. No hay dependencias externas.
 - **Política de seguridad de contenido estricta:** la app no carga scripts de terceros ni puede enviar datos a otros dominios.
 - **Si olvidas la contraseña, nadie puede recuperar los datos.** Es a propósito.
 

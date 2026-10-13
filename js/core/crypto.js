@@ -7,7 +7,7 @@
 
 const subtle = globalThis.crypto && globalThis.crypto.subtle;
 
-export const KDF_ITERATIONS = 210000;
+export const KDF_ITERATIONS = 600000;
 const SALT_BYTES = 16;
 const IV_BYTES = 12;
 

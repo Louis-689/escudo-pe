@@ -66,3 +66,57 @@ test('el informe incluye datos para la Fiscalía, riesgos y cadena de custodia',
 test('validación de eventos de custodia', () => {
   assert.throws(() => createEntry({ tipo: 'custodia', evento: 'inventado' }, NOW), /custodia no válido/);
 });
+
+const GPS = { gps: { lat: -12.046374, lon: -77.042793 }, marca: 'Samsung', modelo: 'A15' };
+const foto = (nombre, extra) => ({ id: nombre, nombre, tipo: 'image/jpeg', tamano: 10, sha256: 'a'.repeat(64), metadatos: GPS, ...extra });
+
+test('la ubicación de las fotos de la víctima nunca se imprime', async () => {
+  let log = [];
+  log = await appendEntry(log, createEntry({
+    ocurridoEn: '2026-10-12T20:30:00-05:00', canal: 'whatsapp', contacto: '987654321', mensaje: 'Mira tu casa',
+    adjuntos: [foto('recibida.jpg', { recibida: true }), foto('mi-puerta.jpg')],
+  }, NOW));
+  const text = buildTextReport(log, { generadoEn: NOW });
+  const detalle = text.slice(text.indexOf('DETALLE CRONOLÓGICO'));
+  assert.match(detalle, /recibida\.jpg[^\n]*\n {4}Metadatos: GPS -12\.046374, -77\.042793[^\n]*maps\.google\.com/);
+  assert.match(detalle, /mi-puerta\.jpg[^\n]*\n {4}Foto tomada por la víctima: ubicación omitida/);
+  const conGps = (t) => t.split('\n').filter((l) => l.includes('-12.046374')).length;
+  assert.equal(conGps(text), 2, 'solo la foto recibida (resumen y detalle)');
+  const html = buildHtmlReport(log, { generadoEn: NOW });
+  assert.match(html, /Foto tomada por la víctima: ubicación omitida/);
+  assert.equal(html.match(/maps\.google\.com/g).length, 2);
+  // Sin fotos recibidas no aparece ninguna coordenada.
+  let propio = [];
+  propio = await appendEntry(propio, createEntry({ ocurridoEn: '2026-10-12T20:30:00-05:00', canal: 'nota', descripcion: 'Nota en la puerta', adjuntos: [foto('nota.jpg')] }, NOW));
+  assert.doesNotMatch(buildTextReport(propio, { generadoEn: NOW }), /-12\.04|maps\.google|Samsung/);
+  assert.doesNotMatch(buildHtmlReport(propio, { generadoEn: NOW }), /-12\.04|maps\.google|Samsung/);
+});
+
+test('el informe muestra los datos corregidos, qué decía antes y montos en dólares', async () => {
+  let log = [];
+  log = await appendEntry(log, createEntry({ ocurridoEn: '2026-10-12T20:30:00-05:00', canal: 'whatsapp', contacto: '987654321', mensaje: 'Paga', montoExigido: '5000', cuentaPago: '912345678' }, NOW));
+  log = await appendEntry(log, createEntry({ tipo: 'nota', refiereA: log[0].id, descripcion: 'Era en dólares', corrige: { montoExigido: '$ 800', medioPago: 'plin' } }, new Date('2026-10-13T15:00:00Z')));
+  const text = buildTextReport(log, { generadoEn: NOW });
+  assert.match(text, /Monto más alto exigido en dólares: US\$ 800\.00/);
+  assert.doesNotMatch(text, /Monto más alto exigido: S\//);
+  assert.match(text, /Monto exigido: US\$ 800\.00 \(dato corregido el 13\/10\/2026[^;]*; antes decía: Monto exigido: S\/ 5,000\.00; Moneda: Soles \(S\/\)\)/);
+  assert.match(text, /Pago indicado: Plin 912345678 \(dato corregido el 13\/10\/2026[^;]*; antes decía: sin indicar\)/);
+  assert.match(text, /Corrección del 13\/10\/2026, [^\n]*?: Medio de pago: Plin; Monto exigido: US\$ 800\.00/);
+  assert.match(text, /Nota del 13\/10\/2026, [^\n]*?: Era en dólares/);
+  assert.match(text, /Plin: 912345678 \(1\)/);
+  assert.match(text, /Huella [0-9a-f]{64}/);
+  const html = buildHtmlReport(log, { generadoEn: NOW });
+  assert.match(html, /US\$ 800\.00 \(dato corregido el/);
+  assert.match(html, /<dt>Corrección \(/);
+});
+
+test('el informe nunca etiqueta una cuenta como "No indicaron"', async () => {
+  let log = [];
+  log = await appendEntry(log, createEntry({ ocurridoEn: '2026-10-12T20:30:00-05:00', canal: 'whatsapp', mensaje: 'Deposita en 19112345678012', cuentaPago: '191-12345678-0-12' }, NOW));
+  const text = buildTextReport(log, { generadoEn: NOW });
+  const html = buildHtmlReport(log, { generadoEn: NOW });
+  assert.doesNotMatch(text + html, /No indicaron/);
+  assert.match(text, /Pago indicado: 191-12345678-0-12/);
+  assert.match(text, /- 191-12345678-0-12 · Cuenta indicada · 1 vez\/veces · [^\n]* · origen: cuenta indicada para pagar, texto del mensaje/);
+  assert.match(text, /Cuenta: 191-12345678-0-12 \(1\)/);
+});

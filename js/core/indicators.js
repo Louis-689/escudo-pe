@@ -6,6 +6,8 @@
 // para que la Policía y la Fiscalía pidan a las operadoras y bancos, con orden
 // judicial, los datos que identifican a los responsables.
 
+import { applyCorrections, claveCuenta, medioMasEspecifico } from './model.js';
+
 // Códigos de país frecuentes en casos de la región (más largos primero).
 const COUNTRY_CODES = [
   ['593', 'Ecuador'], ['591', 'Bolivia'], ['595', 'Paraguay'], ['598', 'Uruguay'],
@@ -46,11 +48,13 @@ export function classifyPhone(raw) {
 }
 
 const RE = {
-  url: /\b(?:https?:\/\/|www\.)[^\s<>"')]+|\b(?:wa\.me|t\.me|bit\.ly|tinyurl\.com|chat\.whatsapp\.com)\/[^\s<>"')]+/gi,
+  url: /\b(?:https?:\/\/|www\.)[^\s<>"')]+|\b(?:wa\.me|t\.me|bit\.ly|tinyurl\.com|chat\.whatsapp\.com|api\.whatsapp\.com)\/[^\s<>"')]+/gi,
+  // Enlaces de WhatsApp que llevan el número: wa.me/51987654321 y api.whatsapp.com/send?phone=51987654321.
+  waLink: /\bwa\.me\/\+?(\d{6,15})\b|\bapi\.whatsapp\.com\/send\/?\?(?:[^\s#]*?&)?phone=\+?(\d{6,15})\b/gi,
   email: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
   handle: /(?:^|[\s(])@([A-Za-z0-9_.]{3,30})\b/g,
-  // Teléfonos: +CC ... o celulares peruanos de 9 dígitos con separadores.
-  phone: /(?:\+|\b00)\d[\d\s.-]{6,17}\d|\b9\d{2}[\s.-]?\d{3}[\s.-]?\d{3}\b/g,
+  // Teléfonos: +CC ..., celulares peruanos de 9 dígitos con separadores y 51 + celular sin "+".
+  phone: /(?:\+|\b00)\d[\d\s.-]{6,17}\d|\b51[\s.-]?9\d{2}[\s.-]?\d{3}[\s.-]?\d{3}\b|\b9\d{2}[\s.-]?\d{3}[\s.-]?\d{3}\b/g,
   // Secuencias largas de dígitos (cuentas bancarias, CCI).
   account: /\b\d[\d -]{8,26}\d\b/g,
   // Montos: S/ 500, 500 soles, 5 mil, $ 100, 100 dólares, USD 50.
@@ -87,29 +91,45 @@ export function extractIndicators(text) {
   };
   if (!t.trim()) return out;
 
+  // Tramos ya usados: un número dentro de un enlace o de un teléfono no es una cuenta.
+  const span = (m) => [m.index, m.index + m[0].length];
+  const overlaps = (spans, [s, e]) => spans.some(([a, b]) => s < b && a < e);
+  const urlSpans = [...t.matchAll(RE.url)].map(span);
   const phoneSpans = [];
+  const addPhone = (p, original) => out.telefonos.push({ valor: p.e164, pais: p.pais, tipo: p.tipo, original: original.trim() });
+
+  // wa.me/51987654321: el número del enlace es un teléfono (siempre con código de país).
+  for (const m of t.matchAll(RE.waLink)) {
+    const digits = m[1] || m[2];
+    const p = classifyPhone(digits.length === 9 ? digits : '+' + digits);
+    if (p) {
+      phoneSpans.push(span(m));
+      addPhone(p, m[0]);
+    }
+  }
+
   for (const m of t.matchAll(RE.phone)) {
+    if (overlaps(urlSpans, span(m))) continue;
     const p = classifyPhone(m[0]);
     if (p) {
-      phoneSpans.push([m.index, m.index + m[0].length]);
-      out.telefonos.push({ valor: p.e164, pais: p.pais, tipo: p.tipo, original: m[0].trim() });
+      phoneSpans.push(span(m));
+      addPhone(p, m[0]);
       // "yapea al 912..." / "plin 912...": el número también es una billetera para cobrar.
       const before = t.slice(Math.max(0, m.index - 30), m.index);
       const wallet = /\b(yape|yapea\w*|plin|plinea\w*)\b[^\n]*$/i.exec(before);
-      if (wallet) out.cuentas.push({ valor: p.e164, digitos: p.e164, tipo: 'Billetera vinculada a celular', medio: /^y/i.test(wallet[1]) ? 'yape' : 'plin' });
+      if (wallet) out.cuentas.push({ valor: p.e164, digitos: p.e164.replace(/\D/g, ''), tipo: 'Billetera vinculada a celular', medio: /^y/i.test(wallet[1]) ? 'yape' : 'plin' });
     }
   }
-  const insidePhone = (i) => phoneSpans.some(([a, b]) => i >= a && i < b);
 
   for (const m of t.matchAll(RE.account)) {
-    if (insidePhone(m.index)) continue;
+    if (overlaps(phoneSpans, span(m)) || overlaps(urlSpans, span(m))) continue;
     const digits = m[0].replace(/\D/g, '');
     if (digits.length < 10 || digits.length > 20) continue;
     const tipo = digits.length === 20 ? 'CCI (cuenta interbancaria)' : 'Posible cuenta bancaria';
     out.cuentas.push({ valor: m[0].trim(), digitos: digits, tipo });
   }
 
-  for (const m of t.matchAll(RE.url)) out.enlaces.push({ valor: m[0].replace(/[.,;:!?]+$/, '') });
+  for (const [a, b] of urlSpans) out.enlaces.push({ valor: t.slice(a, b).replace(/[.,;:!?]+$/, '') });
   for (const m of t.matchAll(RE.email)) out.correos.push({ valor: m[0].toLowerCase() });
   const emailText = out.correos.map((c) => c.valor).join(' ');
   for (const m of t.matchAll(RE.handle)) {
@@ -127,43 +147,65 @@ export function extractIndicators(text) {
   return out;
 }
 
-/** Texto de un registro sobre el que se buscan indicios. */
+// Tipos de cuenta de más a menos informativos (para la fila que junta varias menciones).
+const TIPO_CUENTA_RANK = {
+  'Billetera vinculada a celular': 2, 'CCI (cuenta interbancaria)': 2, 'Cuenta indicada': 1, 'Posible cuenta bancaria': 1,
+};
+
 /**
- * Consolida los indicios de toda la bitácora, con cuántas veces aparecen,
- * la primera y la última fecha. Es la base de la sección para la Fiscalía.
+ * Consolida los indicios de toda la bitácora (con los datos ya corregidos por
+ * las notas), con en cuántos incidentes aparecen, la primera y la última fecha
+ * y de dónde salieron ("origenes"): "contacto" (quien escribió o llamó),
+ * "cuenta de pago" (la cuenta que la víctima anotó en el formulario), "mensaje"
+ * (texto del extorsionador) o "descripcion" (lo que anotó la víctima).
+ * Es la base de la sección para la Fiscalía.
  */
 export function consolidate(log) {
-  const incidents = log.filter((e) => e.tipo === 'incidente');
+  const incidents = applyCorrections(log).filter((e) => e.tipo === 'incidente');
   const buckets = {
     telefonos: new Map(), cuentas: new Map(), enlaces: new Map(), correos: new Map(),
     perfiles: new Map(), placas: new Map(), billeteras: new Map(), riesgos: new Map(),
   };
+  const vistos = new Map();
   const fotos = [];
   const add = (bucket, key, item, e, origen) => {
     const prev = buckets[bucket].get(key);
     if (prev) {
-      prev.veces += 1;
+      // "veces" cuenta incidentes, no menciones: el mismo número en el contacto y en el texto es una vez.
+      const ids = vistos.get(prev);
+      if (!ids.has(e.id)) {
+        ids.add(e.id);
+        prev.veces += 1;
+      }
       if (e.ocurridoEn < prev.primera) prev.primera = e.ocurridoEn;
       if (e.ocurridoEn > prev.ultima) prev.ultima = e.ocurridoEn;
       if (!prev.canales.includes(e.canal)) prev.canales.push(e.canal);
       if (!prev.origenes.includes(origen)) prev.origenes.push(origen);
-    } else {
-      buckets[bucket].set(key, { ...item, veces: 1, primera: e.ocurridoEn, ultima: e.ocurridoEn, canales: [e.canal], origenes: [origen] });
+      return prev;
     }
+    const nuevo = { ...item, veces: 1, primera: e.ocurridoEn, ultima: e.ocurridoEn, canales: [e.canal], origenes: [origen] };
+    buckets[bucket].set(key, nuevo);
+    vistos.set(nuevo, new Set([e.id]));
+    return nuevo;
+  };
+  // Las cuentas se juntan por sus dígitos: la escrita en el campo y la que aparece en el texto son una sola fila.
+  const addCuenta = (c, e, origen) => {
+    const fila = add('cuentas', claveCuenta(c.valor), { valor: c.valor, medio: c.medio || '', tipo: c.tipo, titular: c.titular || '' }, e, origen);
+    fila.medio = medioMasEspecifico(fila.medio, c.medio || '');
+    if ((TIPO_CUENTA_RANK[c.tipo] || 0) > (TIPO_CUENTA_RANK[fila.tipo] || 0)) fila.tipo = c.tipo;
+    // Se muestra la cuenta tal como la anotó la víctima.
+    if (origen === 'cuenta de pago') fila.valor = c.valor;
+    if (c.titular && !fila.titular) fila.titular = c.titular;
   };
 
   for (const e of incidents) {
     const contact = classifyPhone(e.contacto);
     if (contact) add('telefonos', contact.e164, { valor: contact.e164, pais: contact.pais, tipo: contact.tipo }, e, 'contacto');
-    else if (e.contacto) add('perfiles', e.contacto, { valor: e.contacto }, e, 'contacto');
+    else if (e.contacto) add('perfiles', e.contacto.toLowerCase(), { valor: e.contacto }, e, 'contacto');
 
     if (e.cuentaPago) {
       const p = classifyPhone(e.cuentaPago);
-      const medio = e.medioPago || 'otro';
-      const key = (p ? p.e164 : e.cuentaPago.replace(/\s/g, '')) + '|' + medio;
-      add('cuentas', key, { valor: e.cuentaPago, medio, tipo: p ? 'Billetera vinculada a celular' : 'Cuenta indicada', titular: e.titularCuenta || '' }, e, 'cuenta de pago');
-      const prev = buckets.cuentas.get(key);
-      if (e.titularCuenta && !prev.titular) prev.titular = e.titularCuenta;
+      addCuenta({ valor: e.cuentaPago, medio: e.medioPago || '', tipo: p ? 'Billetera vinculada a celular' : 'Cuenta indicada', titular: e.titularCuenta }, e, 'cuenta de pago');
     }
     // Solo las fotos que envió el extorsionador: el GPS de las propias fotos es la casa de la víctima.
     for (const a of e.adjuntos) {
@@ -176,7 +218,7 @@ export function consolidate(log) {
       if (!text) continue;
       const found = extractIndicators(text);
       for (const t of found.telefonos) add('telefonos', t.valor, t, e, origen);
-      for (const c of found.cuentas) add('cuentas', c.digitos + '|' + (c.medio || ''), { valor: c.valor, medio: c.medio || '', tipo: c.tipo }, e, origen);
+      for (const c of found.cuentas) addCuenta(c, e, origen);
       for (const k of ['enlaces', 'correos', 'perfiles', 'placas', 'billeteras', 'riesgos']) {
         for (const x of found[k]) add(k, x.valor.toLowerCase(), x, e, origen);
       }

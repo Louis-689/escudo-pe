@@ -168,3 +168,6 @@ a.link-btn.wa { border-color: #25d366; }
 .jump { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
 .jump a { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); text-decoration: none; font-weight: 600; }
 [id] { scroll-margin-top: 64px; }
+
+.subcard { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
+.subcard > summary { font-weight: 700; cursor: pointer; }

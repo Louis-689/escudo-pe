@@ -6,7 +6,7 @@ Escudo guarda información muy sensible de personas en riesgo. Si encuentras una
 
 **Escudo protege contra:**
 
-- Alguien que toma el celular **bloqueado o con Escudo cerrado** y revisa archivos, la galería o el almacenamiento del navegador: los registros y pruebas están cifrados (AES-GCM 256, clave derivada con PBKDF2-SHA256, 210 000 iteraciones).
+- Alguien que toma el celular **bloqueado o con Escudo cerrado** y revisa archivos, la galería o el almacenamiento del navegador: los registros y pruebas están cifrados (AES-GCM 256, clave derivada con PBKDF2-SHA256, 600 000 iteraciones en bóvedas nuevas; las antiguas suben al cambiar la contraseña). La contraseña debe tener al menos 8 caracteres, no puede ser solo un número corto (fecha, DNI, PIN) ni repetir los mismos caracteres.
 - Escrituras a medias: guardar un registro, cambiar la contraseña o restaurar una copia se hace en una sola transacción de IndexedDB (todo o nada).
 - Alteraciones de la bitácora: cada registro está encadenado con SHA-256 al anterior y cada prueba tiene su huella. `verify()` detecta cambios, registros borrados o reordenados y archivos dañados.
 - Archivos manipulados: las copias y los ZIP se validan (parámetros de cifrado, claves permitidas, tamaño máximo descomprimido de 300 MB, CRC de cada archivo).

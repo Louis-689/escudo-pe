@@ -8,8 +8,8 @@
 // Los datos de la persona (nombre, DNI, domicilio) solo se usan para armar el
 // documento: no se guardan en ningún lado.
 
-import { CANALES, MEDIOS_PAGO, formatSoles } from './model.js';
-import { consolidate } from './indicators.js';
+import { MEDIOS_PAGO, formatMoney, applyCorrections, claveCuenta, etiquetaMedio } from './model.js';
+import { consolidate, classifyPhone } from './indicators.js';
 import { formatDate, escapeHtml } from './report.js';
 
 export const CANALES_DENUNCIA = [
@@ -60,55 +60,101 @@ const FRASE_CANAL = {
   redes: 'mensajes por redes sociales', presencial: 'una amenaza en persona', nota: 'una nota o carta', otro: 'una comunicación',
 };
 
-function hecho(e) {
-  const hasMonto = e.montoExigido !== null && e.montoExigido !== undefined;
-  let first = `El ${formatDate(e.ocurridoEn)} (hora de Lima) recibí ${FRASE_CANAL[e.canal] || 'una comunicación'}${e.contacto ? ` desde ${e.contacto}` : ''}`;
+const fechaCorta = (iso) => formatDate(iso).split(',')[0];
+
+/** " (dato corregido el 13/10/2026)" si alguno de esos datos se corrigió con una nota. */
+function marca(e, ...campos) {
+  const fechas = campos.map((c) => e.corregido && e.corregido[c] && e.corregido[c].fecha).filter(Boolean).sort();
+  return fechas.length ? ` (dato corregido el ${fechaCorta(fechas[fechas.length - 1])})` : '';
+}
+
+function hecho(e, notas = []) {
+  const hasMonto = typeof e.montoExigido === 'number';
+  let first = `El ${formatDate(e.ocurridoEn)} (hora de Lima) recibí ${FRASE_CANAL[e.canal] || 'una comunicación'}${e.contacto ? ` desde ${e.contacto}${marca(e, 'contacto')}` : ''}`;
   first += e.mensaje ? `, con el siguiente texto: "${e.mensaje}"` : ' de contenido extorsivo';
   const sentences = [first];
   if (e.descripcion) sentences.push(e.descripcion);
-  let pago = hasMonto ? `Me exigieron ${formatSoles(e.montoExigido)}` : '';
+  let pago = hasMonto ? `Me exigieron ${formatMoney(e.montoExigido, e.moneda)}${marca(e, 'montoExigido', 'moneda')}` : '';
   if (e.cuentaPago) {
-    pago += `${hasMonto ? ', a' : 'Me indicaron'} pagar por ${MEDIOS_PAGO[e.medioPago] || 'la cuenta'} ${e.cuentaPago}`;
-    if (e.titularCuenta) pago += `, cuyo titular, según muestra la aplicación, es "${e.titularCuenta}"`;
+    const medio = e.medioPago && e.medioPago !== 'otro' && MEDIOS_PAGO[e.medioPago] ? MEDIOS_PAGO[e.medioPago] : 'la cuenta';
+    pago += `${hasMonto ? ', a' : 'Me indicaron'} pagar por ${medio} ${e.cuentaPago}${marca(e, 'cuentaPago', 'medioPago')}`;
+    if (e.titularCuenta) pago += `, cuyo titular, según muestra la aplicación, es "${e.titularCuenta}"${marca(e, 'titularCuenta')}`;
   }
   if (pago) sentences.push(pago);
   if (e.adjuntos.length) sentences.push(`Adjunto como prueba: ${e.adjuntos.map((a) => `${a.nombre} (SHA-256 ${a.sha256})`).join('; ')}`);
+  // Las notas libres de la víctima se agregan al hecho, con su fecha.
+  for (const n of notas) sentences.push(`Precisión posterior del ${fechaCorta(n.registradoEn)}: ${clean(n.descripcion, 2000)}`);
   return sentences.map((x) => x.trim().replace(/[.\s]+$/, '')).join('. ') + '.';
+}
+
+/** E.164 del celular de la víctima (para no pedir que se investigue su propio número). */
+function propioE164(datos = {}) {
+  const p = classifyPhone(clean(datos.celular, 20));
+  return p ? p.e164 : '';
 }
 
 function sections(log, datos, generadoEn) {
   const d = denunciante(datos);
+  const propio = propioE164(datos);
+  const propioClave = propio.replace(/\D/g, '');
   const all = consolidate(log);
-  // Solo se acusa lo que vino del extorsionador; lo que la víctima solo mencionó en su descripción, no.
   const fromThem = (x) => x.origenes.some((o) => o !== 'descripcion');
+  // Solo se acusa a quien contactó (campo "contacto") y a la cuenta que la víctima anotó para el pago.
+  // Los números y cuentas que solo aparecen en el texto pueden ser de familiares o terceros:
+  // se pide verificar a quién pertenecen, sin bloquear ni inmovilizar nada.
+  const lineas = all.telefonos.filter((t) => t.origenes.includes('contacto') && t.valor !== propio);
+  const cuentasPago = all.cuentas.filter((c) => c.origenes.includes('cuenta de pago') && claveCuenta(c.valor) !== propioClave);
+  const usadas = new Set([...lineas.map((t) => t.valor.replace(/\D/g, '')), ...cuentasPago.map((c) => claveCuenta(c.valor))]);
+  const mencionados = new Map();
+  for (const t of all.telefonos) {
+    const k = t.valor.replace(/\D/g, '');
+    if (t.valor !== propio && !usadas.has(k) && !mencionados.has(k)) mencionados.set(k, t.valor);
+  }
+  for (const c of all.cuentas) {
+    const k = claveCuenta(c.valor);
+    if (k !== propioClave && !usadas.has(k) && !mencionados.has(k)) mencionados.set(k, `${c.valor} (${c.tipo.toLowerCase()})`);
+  }
+  for (const b of all.billeteras) {
+    const k = b.valor.toLowerCase();
+    if (!usadas.has(k) && !mencionados.has(k)) mencionados.set(k, `${b.red} ${b.valor}`);
+  }
+
   const f = {
-    ...all,
-    telefonos: all.telefonos.filter(fromThem), cuentas: all.cuentas.filter(fromThem), billeteras: all.billeteras.filter(fromThem),
-    perfiles: all.perfiles.filter(fromThem), correos: all.correos.filter(fromThem), enlaces: all.enlaces.filter(fromThem), placas: all.placas.filter(fromThem),
+    perfiles: all.perfiles.filter(fromThem), correos: all.correos.filter(fromThem),
+    enlaces: all.enlaces.filter(fromThem), placas: all.placas.filter(fromThem),
   };
-  const incidents = log.filter((e) => e.tipo === 'incidente').sort((a, b) => a.ocurridoEn.localeCompare(b.ocurridoEn));
-  const telefonos = f.telefonos.map((t) => `${t.valor} (${t.tipo}, ${t.pais}; ${t.veces} vez/veces)`);
-  const cuentas = f.cuentas.map((c) => `${c.medio ? (MEDIOS_PAGO[c.medio] || c.medio) + ' ' : ''}${c.valor}${c.titular ? `, titular mostrado "${c.titular}"` : ''}`);
-  const billeteras = f.billeteras.map((b) => `${b.red} ${b.valor}`);
-  const fotosGps = f.fotos.filter((x) => x.gps);
+  const notas = new Map();
+  for (const n of log) {
+    if (n.tipo !== 'nota' || !String(n.descripcion ?? '').trim()) continue;
+    if (!notas.has(n.refiereA)) notas.set(n.refiereA, []);
+    notas.get(n.refiereA).push(n);
+  }
+  const incidents = applyCorrections(log).filter((e) => e.tipo === 'incidente').sort((a, b) => a.ocurridoEn.localeCompare(b.ocurridoEn));
+  const cuentas = cuentasPago.map((c) => `${etiquetaMedio(c.medio)} ${c.valor}${c.titular ? `, titular mostrado "${c.titular}"` : ''}`);
+  const fotosGps = all.fotos.filter((x) => x.gps);
   const otros = [...f.perfiles, ...f.correos, ...f.enlaces, ...f.placas].map((x) => x.valor);
 
   const denunciados = ['Los que resulten responsables'];
-  if (telefonos.length) denunciados.push(`usuarios de las líneas ${f.telefonos.map((t) => t.valor).join(', ')}`);
-  if (cuentas.length || billeteras.length) denunciados.push(`titulares de las cuentas ${[...f.cuentas.map((c) => c.valor), ...f.billeteras.map((b) => b.valor)].join(', ')}`);
+  if (lineas.length) denunciados.push(`usuarios de las líneas ${lineas.map((t) => t.valor).join(', ')}`);
+  if (cuentasPago.length) denunciados.push(`titulares de las cuentas ${cuentasPago.map((c) => c.valor).join(', ')}`);
 
   const diligencias = [];
-  if (telefonos.length) {
-    diligencias.push(`Se identifique a los titulares de las líneas ${f.telefonos.map((t) => t.valor).join(', ')} y se solicite a las empresas operadoras el registro de llamadas y mensajes y la geolocalización de los equipos (D. Leg. 1182; art. 230 del Código Procesal Penal; D. Leg. 1708, trámite en 24 horas en casos de extorsión).`);
+  if (lineas.length) {
+    diligencias.push(`Se identifique a los titulares de las líneas ${lineas.map((t) => t.valor).join(', ')} y se solicite a las empresas operadoras el registro de llamadas y mensajes y la geolocalización de los equipos (D. Leg. 1182; art. 230 del Código Procesal Penal; D. Leg. 1708, trámite en 24 horas en casos de extorsión).`);
     diligencias.push('Se identifique el IMEI de los equipos que usaron esas líneas y, una vez realizadas las diligencias de identificación y geolocalización, se oficie a la empresa operadora y al RENTESEG el bloqueo de las líneas y de los equipos.');
   }
-  if (cuentas.length || billeteras.length) {
-    diligencias.push(`Se identifique a los titulares de las cuentas y billeteras ${[...cuentas, ...billeteras].join('; ')}, se solicite el levantamiento del secreto bancario (art. 235 del Código Procesal Penal) y la inmovilización de los fondos.`);
+  if (cuentas.length) {
+    diligencias.push(`Se identifique a los titulares de las cuentas indicadas para el pago ${cuentas.join('; ')}, se solicite el levantamiento del secreto bancario (art. 235 del Código Procesal Penal) y la inmovilización de los fondos.`);
+  }
+  if (mencionados.size) {
+    diligencias.push(`Se verifique a quién pertenecen los siguientes números y cuentas mencionados en los mensajes: ${[...mencionados.values()].join(', ')}. Pueden pertenecer a terceros ajenos a los hechos.`);
   }
   if (fotosGps.length) {
     diligencias.push(`Se analicen las coordenadas GPS contenidas en ${fotosGps.length === 1 ? 'la foto recibida' : `las ${fotosGps.length} fotos recibidas`} (${fotosGps.map((x) => `${x.nombre}: ${x.gps.lat}, ${x.gps.lon}`).join('; ')}), que podrían indicar desde dónde se tomaron.`);
   }
-  const waNumbers = [...new Set(incidents.filter((e) => e.canal === 'whatsapp' && e.contacto).map((e) => e.contacto))];
+  const waNumbers = [...new Set(incidents
+    .filter((e) => e.canal === 'whatsapp' && e.contacto && !(propio && (classifyPhone(e.contacto) || {}).e164 === propio))
+    .map((e) => e.contacto))];
   if (waNumbers.length) {
     diligencias.push(`Se solicite a WhatsApp (Meta Platforms), por los canales de cooperación con autoridades, los datos de registro, las direcciones IP de conexión y los registros de actividad de las cuentas asociadas a ${waNumbers.join(', ')}, y su preservación inmediata.`);
   }
@@ -130,14 +176,14 @@ function sections(log, datos, generadoEn) {
     presentacion: `${d.nombre}, identificado(a) con DNI ${d.dni}, con domicilio en ${d.domicilio}, celular ${d.celular} y correo ${d.correo}, ante usted me presento y digo:`,
     petitorio: 'Al amparo del art. 326 del Código Procesal Penal, interpongo DENUNCIA PENAL por el delito de EXTORSIÓN (art. 200 del Código Penal) contra:',
     denunciados,
-    hechos: incidents.map(hecho),
+    hechos: incidents.map((e) => hecho(e, notas.get(e.id))),
     diligencias,
     pruebas: [
       'Informe de incidentes generado con Escudo, con la cadena de huellas SHA-256 de cada registro.',
       'Paquete de pruebas (archivos originales y lista de huellas huellas.sha256), que entrego en un medio digital.',
       'Mi celular, que pongo a disposición para la pericia. No he borrado los mensajes originales.',
     ],
-    fecha: `${d.ciudad}, ${formatDate(generadoEn.toISOString()).split(',')[0]}`,
+    fecha: `${d.ciudad}, ${fechaCorta(generadoEn.toISOString())}`,
   };
 }
 
@@ -210,14 +256,17 @@ export function buildPoliceComplaintText(datos = {}, generadoEn = new Date()) {
   ].join('\n');
 }
 
-/** Cuentas y billeteras que dio el extorsionador (no las que la víctima solo mencionó). */
-export function extortionAccounts(log) {
-  const f = consolidate(log);
-  const fromThem = (x) => x.origenes.some((o) => o !== 'descripcion');
-  return [
-    ...f.cuentas.filter(fromThem).map((c) => ({ valor: c.valor, medio: MEDIOS_PAGO[c.medio] || 'Cuenta', titular: c.titular || '', primera: c.primera, ultima: c.ultima, veces: c.veces })),
-    ...f.billeteras.filter(fromThem).map((b) => ({ valor: b.valor, medio: b.red, titular: '', primera: b.primera, ultima: b.ultima, veces: b.veces })),
-  ];
+/**
+ * Cuentas que la víctima anotó para el pago (campo "cuentaPago", ya corregido
+ * por las notas). Los números o cuentas que solo aparecen en el texto de los
+ * mensajes no entran: podrían ser de familiares o de terceros. Con datos.celular
+ * se excluye también el propio número de la víctima.
+ */
+export function extortionAccounts(log, datos = {}) {
+  const propio = propioE164(datos).replace(/\D/g, '');
+  return consolidate(log).cuentas
+    .filter((c) => c.origenes.includes('cuenta de pago') && (!propio || claveCuenta(c.valor) !== propio))
+    .map((c) => ({ valor: c.valor, medio: etiquetaMedio(c.medio), titular: c.titular || '', primera: c.primera, ultima: c.ultima, veces: c.veces }));
 }
 
 /**
@@ -227,7 +276,7 @@ export function extortionAccounts(log) {
  */
 export function buildBankReportText(log, datos = {}, generadoEn = new Date()) {
   const d = denunciante(datos);
-  const cuentas = extortionAccounts(log);
+  const cuentas = extortionAccounts(log, datos);
   const denuncia = clean(datos.numeroDenuncia, 60) || '__________ (si ya denunciaste)';
   return [
     'ASUNTO: Reporte de cuenta utilizada para extorsión. Solicito bloqueo preventivo y reporte de operación sospechosa a la UIF-Perú.',
@@ -236,7 +285,7 @@ export function buildBankReportText(log, datos = {}, generadoEn = new Date()) {
     '',
     `Yo, ${d.nombre}, con DNI ${d.dni} y celular ${d.celular}, soy víctima del delito de extorsión (art. 200 del Código Penal). Los extorsionadores me exigieron depositar dinero en ${cuentas.length === 1 ? 'la siguiente cuenta' : 'las siguientes cuentas'}:`,
     '',
-    ...(cuentas.length ? cuentas.map((c, i) => `${i + 1}. ${c.medio}: ${c.valor}${c.titular ? ` — titular que muestra la aplicación: ${c.titular}` : ''} — indicada ${c.veces} vez/veces entre el ${formatDate(c.primera)} y el ${formatDate(c.ultima)}.`) : ['1. ____________________']),
+    ...(cuentas.length ? cuentas.map((c, i) => `${i + 1}. ${c.medio}: ${c.valor}${c.titular ? ` — titular que muestra la aplicación: ${c.titular}` : ''} — indicada ${c.veces} vez/veces entre el ${formatDate(c.primera)} y el ${formatDate(c.ultima).replace(/\.$/, '')}.`) : ['1. ____________________']),
     '',
     `Número de denuncia o carpeta fiscal: ${denuncia}.`,
     '',

@@ -1,6 +1,6 @@
 // Interfaz de Escudo. Toda la lógica sensible vive en js/core/ y tiene tests.
 
-import { Vault, MAX_FILE_BYTES } from './core/vault.js';
+import { Vault, MAX_FILE_BYTES, checkPassword } from './core/vault.js';
 import { IndexedDBStorage } from './core/storage.js';
 import { isCryptoAvailable, sha256Hex } from './core/crypto.js';
 import { buildEvidencePackage, findByHash } from './core/evidence.js';
@@ -12,7 +12,7 @@ import {
   buildComplaintText, buildComplaintBody, buildPoliceComplaintText, buildBankReportText, extortionAccounts,
   CANALES_DENUNCIA, CANALES_QUEJA,
 } from './core/complaint.js';
-import { CANALES, MEDIOS_PAGO, formatSoles } from './core/model.js';
+import { CANALES, MEDIOS_PAGO, MONEDAS, CAMPOS_CORREGIBLES, formatMoney, applyCorrections, describeCorrection } from './core/model.js';
 import { buildTextReport, buildHtmlReport, buildReportBody, formatDate } from './core/report.js';
 import { CONTACTOS, PASOS, VERIFICADO } from './data/contacts.js';
 import {
@@ -24,6 +24,12 @@ const storage = new IndexedDBStorage();
 // persona a abrir Escudo, esa contraseña abre una bitácora vacía y creíble.
 const decoyStorage = new IndexedDBStorage('notas', 'datos');
 let isDecoy = false;
+// Coincidencias con fichas de otras víctimas (se calculan al abrir el Informe).
+let conexos = null;
+// En la bitácora señuelo, la tarjeta de contraseña de emergencia finge estar configurada o no.
+let decoyDuressShown = false;
+// En la bitácora señuelo, los contactos y el trayecto viven solo en memoria: no se muestran los reales.
+const decoyPrefs = new Map();
 let decoyPassword = '';
 const AUTO_LOCK_MS = 2 * 60 * 1000;
 const IDLE_LOCK_MS = 5 * 60 * 1000;
@@ -105,6 +111,33 @@ function trapBack() {
   } catch { /* sin historial disponible */ }
 }
 
+// Amenazas de muerte, armas, explosivos, a la familia o con plazo: pasos de protección inmediatos.
+const URGENT_RISKS = {
+  muerte: 'amenaza de muerte', armas: 'menciona armas', explosivos: 'menciona explosivos',
+  familia: 'involucra a tu familia', vigilancia: 'dicen que te vigilan', plazo: 'te ponen un plazo',
+};
+
+function showUrgent(text) {
+  const riesgos = extractIndicators(text).riesgos.map((r) => r.valor).filter((r) => URGENT_RISKS[r]);
+  const grave = riesgos.some((r) => r !== 'plazo' && r !== 'familia') || riesgos.length >= 2;
+  $('#urgent').hidden = !grave;
+  if (!grave) return;
+  $('#urgent-why').textContent = `Detectamos: ${riesgos.map((r) => URGENT_RISKS[r]).join(', ')}. No esperes: estos pasos te protegen y dejan constancia.`;
+  $('#urgent').scrollIntoView({ block: 'start' });
+}
+
+/** Datos de la persona para la denuncia (no se guardan: viven solo en el formulario). */
+function complaintData() {
+  const f = $('#form-complaint');
+  return {
+    nombre: f.nombre.value, dni: f.dni.value, domicilio: f.domicilio.value,
+    celular: f.celular.value, ciudad: f.ciudad.value, correo: f.correo.value, reserva: f.reserva.checked,
+    operativo: f.operativo.checked, conservaTodo: f.conservaTodo.checked, celularPericia: f.celularPericia.checked,
+    lengua: f.lengua.value,
+    ...(conexos && conexos.personas ? { conexos } : {}),
+  };
+}
+
 function showTab(tab) {
   for (const b of $$('.tabs button')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
   for (const t of $$('.tab')) t.hidden = t.id !== 'tab-' + tab;
@@ -112,7 +145,7 @@ function showTab(tab) {
   if (tab === 'settings') renderDuress();
   if (tab === 'log') renderLog();
   if (tab === 'report') {
-    const cuentas = extortionAccounts(vault.log);
+    const cuentas = extortionAccounts(vault.log, complaintData());
     $('#bank-accounts').replaceChildren(...(cuentas.length
       ? cuentas.map((c) => el('li', {}, el('b', {}, `${c.medio}: ${c.valor}`), c.titular ? ` · titular: ${c.titular}` : ' · titular: aún no lo anotaste'))
       : [el('li', {}, 'Aún no registraste ninguna cuenta del extorsionador.')]));
@@ -140,7 +173,8 @@ function renderHelp(target) {
   $('.contacts', tpl).append(...CONTACTOS.map((c) => el('li', {},
     el('b', {}, c.nombre), el('br'), c.detalle, el('br'),
     el('a', { class: 'call', href: 'tel:' + c.numero }, 'Llamar al ' + c.numero.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')),
-    c.whatsapp && el('a', { class: 'call', href: 'https://wa.me/' + c.whatsapp, target: '_blank', rel: 'noopener noreferrer' }, 'Enviar pruebas por WhatsApp'))));
+    c.whatsapp && el('a', { class: 'call', href: 'https://wa.me/' + c.whatsapp, target: '_blank', rel: 'noopener noreferrer' }, 'Enviar pruebas por WhatsApp'),
+    c.fuente && el('a', { class: 'small', href: c.fuente, target: '_blank', rel: 'noopener noreferrer' }, 'Fuente'))));
   $('.verified', tpl).textContent = VERIFICADO;
   target.replaceChildren(tpl);
 }
@@ -148,6 +182,7 @@ function renderHelp(target) {
 function resetForm() {
   const form = $('#form-new');
   form.reset();
+  $('#pago-block').open = false;
   pendingFiles = [];
   renderPending();
   form.ocurridoEn.value = localDateTimeValue();
@@ -202,10 +237,11 @@ async function loadChat(fileList) {
   const txts = files.filter((f) => /\.txt$/i.test(f.name));
   const chat = txts.find((f) => /chat/i.test(f.name)) || txts[0];
   if (!chat) throw new Error('No encontré el archivo .txt del chat. Elige el .zip exportado o el archivo .txt.');
-  const parsed = parseWhatsAppChat(new TextDecoder().decode(chat.bytes));
+  const text = new TextDecoder().decode(chat.bytes);
+  const parsed = parseWhatsAppChat(text);
   if (!parsed.mensajes.length) throw new Error('El archivo no parece un chat exportado de WhatsApp.');
   const media = new Map(files.filter((f) => f !== chat).map((f) => [f.name, f.bytes]));
-  return { chat, parsed, media };
+  return { chat, text, parsed, media };
 }
 
 function renderChatImport() {
@@ -213,6 +249,20 @@ function renderChatImport() {
   const first = parsed.mensajes[0].fecha;
   const last = parsed.mensajes[parsed.mensajes.length - 1].fecha;
   $('#wa-summary').textContent = `"${chat.name}": ${parsed.mensajes.length} mensajes del ${formatDate(first)} al ${formatDate(last)}, ${media.size} archivo(s).`;
+  // Si el chat no deja claro si la fecha es día/mes o mes/día, se pregunta.
+  const m = parsed.muestras;
+  $('#wa-order').hidden = !m;
+  if (m) {
+    const day = (iso) => new Date(iso).toLocaleDateString('es-PE', { timeZone: 'America/Lima', day: 'numeric', month: 'long', year: 'numeric' });
+    $('#wa-order-q').textContent = parsed.ambiguo
+      ? `¿En tu chat, "${m.texto}" es el ${day(m.dia.ejemplo)} o el ${day(m.mes.ejemplo)}? Revisa un mensaje que recuerdes.`
+      : `Fechas leídas como ${parsed.orden === 'mes' ? 'mes/día' : 'día/mes'}. Si están mal, cámbialo:`;
+    const [bd, bm] = $$('#wa-order button');
+    bd.textContent = `${m.texto} = ${day(m.dia.ejemplo)}`;
+    bm.textContent = `${m.texto} = ${day(m.mes.ejemplo)}`;
+    bd.classList.toggle('primary', parsed.orden === 'dia');
+    bm.classList.toggle('primary', parsed.orden === 'mes');
+  }
   $('#wa-authors div').replaceChildren(...parsed.participantes.map((p) => el('label', { class: 'inline' },
     el('input', { type: 'checkbox', value: p.autor, ...(classifyPhone(p.autor) ? { checked: '' } : {}) }),
     `${p.autor} (${p.total} mensajes)`)));
@@ -233,7 +283,14 @@ async function importChat(btn) {
       if (bytes.length > MAX_FILE_BYTES) { skipped.push(name); return null; }
       return { nombre: name, tipo: mimeOf(name), bytes, recibida: true };
     };
-    const items = chatToIncidents(parsed, autores, { archivo: `chat "${chat.name}"` }).map(({ adjuntoNombres, ...input }) => {
+    // Los mensajes ya importados antes (misma huella) no se duplican.
+    const existentes = new Set(vault.log.flatMap((e) => e.huellasChat || []));
+    const incidentes = chatToIncidents(parsed, autores, { archivo: `chat "${chat.name}"`, existentes });
+    const repetidos = incidentes.repetidos || 0;
+    if (!incidentes.length && repetidos) {
+      throw new Error(`Ese chat ya estaba importado: no hay mensajes nuevos (${repetidos} ya estaban en la bitácora).`);
+    }
+    const items = incidentes.map(({ adjuntoNombres, ...input }) => {
       const files = adjuntoNombres.map(toFile).filter(Boolean);
       const missing = adjuntoNombres.filter((n) => !media.has(n));
       if (missing.length) input.descripcion += ` Archivos mencionados que no se eligieron: ${missing.join(', ')}.`;
@@ -258,7 +315,7 @@ async function importChat(btn) {
     $('#wa-files').value = '';
     $('#wa-step2').hidden = true;
     $('#wa-card').open = false;
-    say(`Listo: ${items.length - 1} registro(s) importados${skipped.length ? `. No se guardaron por pesar más de 15 MB: ${skipped.join(', ')}` : ''}. Revísalos en Bitácora.`, skipped.length ? 'err' : 'ok');
+    say(`Listo: ${items.length - 1} registro(s) importados${repetidos ? ` (${repetidos} mensajes ya estaban importados y no se duplicaron)` : ''}${skipped.length ? `. No se guardaron por pesar más de 15 MB: ${skipped.join(', ')}` : ''}. Revísalos en Bitácora.`, skipped.length ? 'err' : 'ok');
   } finally {
     busy(btn, false);
   }
@@ -285,10 +342,25 @@ async function toggleRecording(btn) {
   const chunks = [];
   const started = new Date();
   const rec = new MediaRecorder(stream);
+  // Se mide el volumen: durante una llamada muchos celulares solo entregan silencio a otras apps.
+  let peak = -1;
+  let audioCtx = null;
+  let analyser = null;
+  try {
+    audioCtx = new AudioContext();
+    analyser = audioCtx.createAnalyser();
+    audioCtx.createMediaStreamSource(stream).connect(analyser);
+    peak = 0;
+  } catch { /* sin medición: no se avisa */ }
+  const samples = analyser ? new Float32Array(analyser.fftSize) : null;
   const timer = setInterval(() => {
     const secs = Math.floor((Date.now() - started) / 1000);
     $('#rec-status').textContent = `Grabando ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
-  }, 500);
+    if (analyser) {
+      analyser.getFloatTimeDomainData(samples);
+      for (const v of samples) if (Math.abs(v) > peak) peak = Math.abs(v);
+    }
+  }, 250);
   rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
   let finish;
   recorderDone = new Promise((resolve) => { finish = resolve; });
@@ -296,6 +368,7 @@ async function toggleRecording(btn) {
     try {
       clearInterval(timer);
       stream.getTracks().forEach((t) => t.stop());
+      if (audioCtx) audioCtx.close().catch(() => {});
       recorder = null;
       btn.classList.remove('recording');
       btn.textContent = '🎙️ Grabar audio';
@@ -307,7 +380,12 @@ async function toggleRecording(btn) {
       const name = `grabacion-${localDateTimeValue(started).replace('T', '-').replace(':', '')}.${ext}`;
       pendingFiles.push({ nombre: name, tipo: type.split(';')[0], bytes: new Uint8Array(await blob.arrayBuffer()) });
       renderPending();
-      say('Grabación lista. Se guardará al pulsar "Guardar registro".', 'ok');
+      const secs = (Date.now() - started) / 1000;
+      if (peak >= 0 && peak < 0.01 && secs > 3) {
+        say('La grabación quedó en silencio: durante una llamada muchos celulares no dejan grabar a otras apps. Graba con otro celular junto al altavoz o con la grabadora de llamadas de tu teléfono, y adjunta ese archivo. Anota igual el número, la hora, la voz y lo que exigen.', 'err');
+      } else {
+        say('Grabación lista. Se guardará al pulsar "Guardar registro".', 'ok');
+      }
     } finally {
       recorderDone = null;
       finish();
@@ -479,11 +557,17 @@ function renderBlindaje() {
 // ---------- Modo camuflado ----------
 
 function getPref(key) {
+  if (isDecoy && (key === SOS_KEY || key === TRIP_KEY)) return decoyPrefs.get(key) ?? null;
   try { return localStorage.getItem(key); } catch { return null; }
 }
 
 /** Devuelve false si el navegador no deja guardar (modo privado, datos bloqueados). */
 function setPref(key, value) {
+  if (isDecoy && (key === SOS_KEY || key === TRIP_KEY)) {
+    if (value === null) decoyPrefs.delete(key);
+    else decoyPrefs.set(key, value);
+    return true;
+  }
   try {
     if (value === null) localStorage.removeItem(key);
     else localStorage.setItem(key, value);
@@ -556,20 +640,28 @@ function renderDetected(e) {
 
 function renderLog() {
   const list = $('#log-list');
-  const incidents = vault.log.filter((e) => e.tipo === 'incidente');
+  // Se muestran los datos ya corregidos por notas; el registro original no cambia.
+  const incidents = applyCorrections(vault.log).filter((e) => e.tipo === 'incidente');
   $('#log-empty').hidden = incidents.length > 0;
   const notes = vault.log.filter((e) => e.tipo === 'nota');
+  const fixed = (e, campo) => e.corregido && e.corregido[campo]
+    ? el('span', { class: 'meta' }, ` (corregido el ${formatDate(e.corregido[campo].fecha)})`) : '';
   list.replaceChildren(...incidents.slice().reverse().map((e) => {
     const item = el('li', {},
       el('div', {}, el('b', {}, formatDate(e.ocurridoEn)), ' · ', CANALES[e.canal]),
-      e.contacto && el('div', {}, 'Desde: ', el('b', {}, e.contacto)),
-      e.montoExigido !== null && el('div', {}, 'Exigen: ', el('b', {}, formatSoles(e.montoExigido))),
-      (e.medioPago || e.cuentaPago) && el('div', {}, 'Pago: ', MEDIOS_PAGO[e.medioPago] || '', ' ', e.cuentaPago),
-      e.titularCuenta && el('div', {}, 'Titular que muestra la app: ', el('b', {}, e.titularCuenta)),
+      e.contacto && el('div', {}, 'Desde: ', el('b', {}, e.contacto), fixed(e, 'contacto')),
+      typeof e.montoExigido === 'number' && el('div', {}, 'Exigen: ', el('b', {}, formatMoney(e.montoExigido, e.moneda)), fixed(e, 'montoExigido')),
+      (e.medioPago || e.cuentaPago) && el('div', {}, 'Pago: ', e.medioPago ? MEDIOS_PAGO[e.medioPago] : '', ' ', e.cuentaPago, fixed(e, 'cuentaPago')),
+      e.titularCuenta && el('div', {}, 'Titular que muestra la app: ', el('b', {}, e.titularCuenta), fixed(e, 'titularCuenta')),
+      e.pago && el('div', {}, 'Pagaste: ', el('b', {}, formatMoney(e.pago.monto, e.pago.moneda)),
+        e.pago.fecha ? ` el ${formatDate(e.pago.fecha)}` : '', e.pago.medio ? ` por ${MEDIOS_PAGO[e.pago.medio] || e.pago.medio}` : '',
+        e.pago.cuenta ? ` a ${e.pago.cuenta}` : '', e.pago.operacion ? ` (operación ${e.pago.operacion})` : ''),
       e.mensaje && el('div', { class: 'quote' }, e.mensaje),
       e.descripcion && el('div', {}, e.descripcion),
       ...notes.filter((n) => n.refiereA === e.id).map((n) => el('div', { class: 'note' },
-        el('span', { class: 'meta' }, 'Nota del ', formatDate(n.registradoEn), ': '), n.descripcion)),
+        el('span', { class: 'meta' }, 'Nota del ', formatDate(n.registradoEn), ': '),
+        n.corrige ? el('b', {}, 'Corrección: ', describeCorrection(n.corrige, e.moneda), n.descripcion ? '. ' : '') : '',
+        n.descripcion)),
       el('div', { class: 'meta' }, 'Registrado ', formatDate(e.registradoEn)),
       renderDetected(e),
       ...e.adjuntos.filter((a) => a.metadatos && a.recibida).map((a) => el('div', { class: 'detected' },
@@ -583,7 +675,7 @@ function renderLog() {
     const preview = el('div', { class: 'preview' });
     const actions = el('div', { class: 'actions' },
       ...e.adjuntos.map((a) => el('button', { type: 'button', onclick: () => openAttachment(a, preview) }, 'Ver ', a.nombre)),
-      el('button', { type: 'button', onclick: () => addNote(e) }, 'Agregar nota'),
+      el('button', { type: 'button', onclick: () => addNote(e, preview) }, 'Agregar nota o corregir'),
     );
     item.append(actions, preview);
     return item;
@@ -606,16 +698,44 @@ async function openAttachment(a, target) {
   }
 }
 
-async function addNote(entry) {
-  const text = window.prompt('Escribe la nota o corrección. Los registros no se pueden editar, pero las notas quedan junto al original.');
-  if (!text || !text.trim()) return;
-  try {
-    await vault.add({ tipo: 'nota', refiereA: entry.id, descripcion: text });
-    renderLog();
-    say('Nota agregada.', 'ok');
-  } catch (err) {
-    say(err.message, 'err');
-  }
+/** Nota o corrección: el registro original no se edita, la corrección queda encadenada junto a él. */
+function addNote(entry, target) {
+  const field = (campo, input) => el('label', {}, CAMPOS_CORREGIBLES[campo], input);
+  const options = (map) => [el('option', { value: '' }, '(sin cambio)'),
+    ...Object.entries(map).map(([k, v]) => el('option', { value: k }, v))];
+  const form = el('form', { class: 'card stack note-form' },
+    el('p', { class: 'hint small' }, 'Los registros no se pueden editar (así siguen valiendo como prueba). Escribe una nota o llena solo el dato que quieras corregir: los informes usarán el dato corregido e indicarán la fecha.'),
+    el('label', {}, 'Nota', el('textarea', { name: 'descripcion', rows: '2' })),
+    el('details', {},
+      el('summary', {}, 'Corregir un dato'),
+      field('contacto', el('input', { name: 'contacto', autocomplete: 'off' })),
+      field('montoExigido', el('input', { name: 'montoExigido', inputmode: 'decimal', autocomplete: 'off' })),
+      field('moneda', el('select', { name: 'moneda' }, ...options(MONEDAS))),
+      field('medioPago', el('select', { name: 'medioPago' }, ...options(MEDIOS_PAGO))),
+      field('cuentaPago', el('input', { name: 'cuentaPago', autocomplete: 'off' })),
+      field('titularCuenta', el('input', { name: 'titularCuenta', autocomplete: 'off' }))),
+    el('div', { class: 'actions' },
+      el('button', { type: 'submit', class: 'primary' }, 'Guardar nota'),
+      el('button', { type: 'button', onclick: () => target.replaceChildren() }, 'Cancelar')));
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const corrige = {};
+    for (const campo of Object.keys(CAMPOS_CORREGIBLES)) {
+      const v = form[campo].value.trim();
+      if (v) corrige[campo] = v;
+    }
+    const descripcion = form.descripcion.value.trim();
+    if (!descripcion && !Object.keys(corrige).length) return say('Escribe una nota o el dato a corregir.', 'err');
+    try {
+      await vault.add({ tipo: 'nota', refiereA: entry.id, descripcion, ...(Object.keys(corrige).length ? { corrige } : {}) });
+      renderLog();
+      say(Object.keys(corrige).length ? 'Corrección guardada. Los informes y la denuncia ya usan el dato corregido.' : 'Nota agregada.', 'ok');
+    } catch (err) {
+      say(err.message, 'err');
+    }
+  });
+  target.replaceChildren(form);
+  form.descripcion.focus();
 }
 
 // ---------- Sesión ----------
@@ -651,23 +771,21 @@ async function tryOpen(password) {
 }
 
 async function renderDuress() {
-  $('#form-duress').hidden = isDecoy;
-  if (isDecoy) return;
-  const on = await Vault.exists(decoyStorage).catch(() => false);
+  const on = isDecoy ? decoyDuressShown : await Vault.exists(decoyStorage).catch(() => false);
   $('#duress-status').textContent = on
     ? 'Activa. Si alguien te obliga a abrir Escudo, usa esa contraseña: verá una bitácora vacía.'
     : 'No configurada.';
   $('[data-action="duress-remove"]').hidden = !on;
 }
 
-const DRAFT_FIELDS = ['ocurridoEn', 'canal', 'contacto', 'montoExigido', 'medioPago', 'cuentaPago', 'titularCuenta', 'mensaje', 'descripcion'];
+const DRAFT_FIELDS = ['ocurridoEn', 'canal', 'contacto', 'montoExigido', 'moneda', 'pagoMonto', 'pagoFecha', 'pagoMedio', 'pagoCuenta', 'pagoOperacion', 'medioPago', 'cuentaPago', 'titularCuenta', 'mensaje', 'descripcion'];
 
 /** Lo que la persona estaba escribiendo, o null si el formulario está vacío. */
 function collectDraft() {
   const f = $('#form-new');
   const campos = Object.fromEntries(DRAFT_FIELDS.map((k) => [k, f[k].value]));
   campos.recibidas = f.recibidas.checked;
-  const typed = ['contacto', 'montoExigido', 'cuentaPago', 'titularCuenta', 'mensaje', 'descripcion'].some((k) => campos[k].trim()) || campos.canal;
+  const typed = ['contacto', 'montoExigido', 'cuentaPago', 'titularCuenta', 'mensaje', 'descripcion', 'pagoMonto'].some((k) => campos[k].trim()) || campos.canal;
   if (!typed && !pendingFiles.length) return null;
   return { campos, archivos: pendingFiles };
 }
@@ -676,8 +794,13 @@ async function restoreDraft() {
   let d = null;
   try { d = await vault.takeDraft(); } catch { return; }
   if (!d) return;
+  if (d.perdido) {
+    say('Había un registro a medio escribir que no se pudo recuperar. Revisa si falta algo y vuelve a anotarlo.', 'err');
+    return;
+  }
   const f = $('#form-new');
   for (const k of DRAFT_FIELDS) if (typeof d.campos[k] === 'string') f[k].value = d.campos[k];
+  if (f.pagoMonto.value) $('#pago-block').open = true;
   f.recibidas.checked = Boolean(d.campos.recibidas);
   pendingFiles = d.archivos.map(({ nombre, tipo, bytes }) => ({ nombre, tipo, bytes }));
   renderPending();
@@ -704,6 +827,9 @@ async function lock() {
   vault = null;
   isDecoy = false;
   decoyPassword = '';
+  decoyPrefs.clear();
+  decoyDuressShown = false;
+  $('#urgent').hidden = true;
   pendingFiles = [];
   renderPending();
   chatImport = null;
@@ -821,8 +947,9 @@ async function wipe() {
   if (isDecoy) {
     // En la bitácora señuelo, "Borrar todo" solo vacía el señuelo: las pruebas reales quedan a salvo.
     const pw = decoyPassword;
+    const { creadoEn, iterations } = vault.meta;
     await Vault.wipe(decoyStorage);
-    vault = await Vault.create(decoyStorage, pw);
+    vault = await Vault.create(decoyStorage, pw, { creadoEn, iterations, checkPolicy: false });
     isDecoy = true;
     decoyPassword = pw;
     openApp();
@@ -860,6 +987,7 @@ function quickExit() {
 function bind() {
   fillSelect($('#form-new').canal, { '': 'Elige una opción', ...CANALES });
   fillSelect($('#form-new').medioPago, MEDIOS_PAGO);
+  fillSelect($('#form-new').pagoMedio, MEDIOS_PAGO);
   renderHelp($('#tab-help'));
   renderHelp($('#help-public'));
 
@@ -869,15 +997,26 @@ function bind() {
   $('#form-duress').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const f = ev.target;
-    if (isDecoy) return;
     if (f.p1.value !== f.p2.value) return say('Las contraseñas no coinciden.', 'err');
+    if (isDecoy) {
+      // En la bitácora señuelo la tarjeta se comporta igual, pero no cambia nada real.
+      try { checkPassword(f.p1.value); } catch (err) { return say(err.message, 'err'); }
+      decoyDuressShown = true;
+      f.reset();
+      await renderDuress();
+      return say('Contraseña de emergencia lista. Apréndela bien y no la anotes en el celular.', 'ok');
+    }
     const btn = $('button[type=submit]', f);
     busy(btn, true, 'Guardando…');
     try {
       const same = await Vault.open(storage, f.p1.value).then(() => true, () => false);
       if (same) throw new Error('Debe ser distinta de tu contraseña de siempre.');
       await Vault.wipe(decoyStorage);
-      await Vault.create(decoyStorage, f.p1.value);
+      // El señuelo copia la fecha de creación y el primer registro de custodia, para que su informe se vea igual.
+      const decoy = await Vault.create(decoyStorage, f.p1.value, { creadoEn: vault.meta.creadoEn });
+      const creacion = vault.log.find((e) => e.tipo === 'custodia' && e.evento === 'creacion');
+      await decoy.add({ tipo: 'custodia', evento: 'creacion', descripcion: '', dispositivo: creacion ? creacion.dispositivo : (navigator.userAgent || '') }, [],
+        new Date(creacion ? creacion.registradoEn : vault.meta.creadoEn));
       f.reset();
       await renderDuress();
       say('Contraseña de emergencia lista. Apréndela bien y no la anotes en el celular.', 'ok');
@@ -900,14 +1039,6 @@ function bind() {
     el('a', { href: c.url, target: '_blank', rel: 'noopener noreferrer' }, 'Abrir')));
   $('#complaint-where').replaceChildren(...whereList(CANALES_DENUNCIA));
   $('#police-where').replaceChildren(...whereList(CANALES_QUEJA));
-  const complaintData = () => {
-    const f = $('#form-complaint');
-    return {
-      nombre: f.nombre.value, dni: f.dni.value, domicilio: f.domicilio.value,
-      celular: f.celular.value, ciudad: f.ciudad.value, correo: f.correo.value, reserva: f.reserva.checked,
-      operativo: f.operativo.checked,
-    };
-  };
   $('#form-complaint').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const doc = new DOMParser().parseFromString(buildComplaintBody(vault.log, complaintData()), 'text/html');
@@ -918,7 +1049,7 @@ function bind() {
   });
   $('#form-bank').addEventListener('submit', (ev) => {
     ev.preventDefault();
-    if (!extortionAccounts(vault.log).length) return say('Primero registra la cuenta, Yape o Plin que te dieron (campo "Número de cuenta, Yape o Plin").', 'err');
+    if (!extortionAccounts(vault.log, complaintData()).length) return say('Primero registra la cuenta, Yape o Plin que te dieron (campo "Número de cuenta, Yape o Plin").', 'err');
     download(`reporte-banco-${stamp()}.txt`, buildBankReportText(vault.log, { ...complaintData(), numeroDenuncia: ev.target.numeroDenuncia.value }), 'text/plain');
     say('Reporte descargado. Envíalo al área de fraudes del banco de esa cuenta y del tuyo.', 'ok');
   });
@@ -1037,7 +1168,7 @@ function bind() {
     const btn = $('button[type=submit]', f);
     busy(btn, true, 'Restaurando…');
     try {
-      vault = await Vault.importBackup(storage, await f.file.files[0].text(), f.pw.value);
+      vault = await Vault.importBackup(storage, f.file.files[0], f.pw.value);
       await custody('restauracion', f.file.files[0].name);
       f.reset();
       openApp();
@@ -1064,14 +1195,21 @@ function bind() {
         canal: f.canal.value,
         contacto: f.contacto.value,
         montoExigido: f.montoExigido.value,
+        moneda: f.moneda.value,
+        ...(f.pagoMonto.value.trim() ? { pago: {
+          monto: f.pagoMonto.value, fecha: f.pagoFecha.value, medio: f.pagoMedio.value,
+          cuenta: f.pagoCuenta.value, operacion: f.pagoOperacion.value,
+        } } : {}),
         medioPago: f.medioPago.value,
         cuentaPago: f.cuentaPago.value,
         titularCuenta: f.titularCuenta.value,
         mensaje: f.mensaje.value,
         descripcion: f.descripcion.value,
       }, files);
+      const texto = `${f.mensaje.value} ${f.descripcion.value}`;
       resetForm();
       say(`Registro guardado${files.length ? ` con ${files.length} prueba(s)` : ''}.`, 'ok');
+      showUrgent(texto);
     } catch (err) {
       say(err.message, 'err');
     } finally {
@@ -1147,10 +1285,12 @@ function bind() {
         const same = await Vault.open(decoyStorage, f.p1.value).then(() => true, () => false);
         if (same) throw new Error('Esa es tu contraseña de emergencia. Elige otra.');
       }
-      await vault.changePassword(f.p1.value);
-      await custody('contrasena');
+      const { danados = [] } = (await vault.changePassword(f.p1.value)) || {};
+      await custody('contrasena', danados.length ? `${danados.length} archivo(s) ilegibles` : undefined);
       f.reset();
-      say('Contraseña cambiada.', 'ok');
+      say(danados.length
+        ? `Contraseña cambiada. ${danados.length} archivo(s) ya estaban dañados y no se pudieron volver a cifrar; usa "Comprobar integridad" para ver cuáles.`
+        : 'Contraseña cambiada.', danados.length ? 'err' : 'ok');
     } catch (err) {
       say(err.message, 'err');
     } finally {
@@ -1168,8 +1308,9 @@ function bind() {
     print: () => window.print(),
     'open-sos': openSos,
     async 'duress-remove'() {
-      if (isDecoy || !window.confirm('¿Quitar la contraseña de emergencia?')) return;
-      await Vault.wipe(decoyStorage);
+      if (!window.confirm('¿Quitar la contraseña de emergencia?')) return;
+      if (isDecoy) decoyDuressShown = false;
+      else await Vault.wipe(decoyStorage);
       await renderDuress();
       say('Contraseña de emergencia quitada.', 'ok');
     },
@@ -1182,6 +1323,42 @@ function bind() {
         download(`denuncia-fiscalia-${stamp()}.txt`, text, 'text/plain');
       }
       await custody('denuncia', 'Copiado como texto');
+    },
+    async 'share-app'() {
+      const url = location.origin + location.pathname;
+      const text = 'Escudo: herramienta gratuita y privada para defenderte de la extorsión. Guarda pruebas, arma tu denuncia y no envía tus datos a nadie.';
+      try {
+        await navigator.share({ title: 'Escudo', text, url });
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+        try {
+          await navigator.clipboard.writeText(`${text} ${url}`);
+          say('Enlace copiado. Pégalo en WhatsApp para quien lo necesite.', 'ok');
+        } catch {
+          say(`Comparte este enlace: ${url}`, 'ok');
+        }
+      }
+    },
+    'urgent-sos'() {
+      openSos();
+    },
+    'urgent-trip'() {
+      showTab('protect');
+      $('#form-trip').scrollIntoView({ block: 'start' });
+    },
+    'urgent-complaint'() {
+      showTab('report');
+      const f = $('#form-complaint');
+      f.scrollIntoView({ block: 'start' });
+      if (f.reserva) f.reserva.checked = true;
+    },
+    async 'anchor-urgent'() {
+      showTab('report');
+      await actions.anchor();
+      $('#verify-result').scrollIntoView({ block: 'start' });
+    },
+    'urgent-close'() {
+      $('#urgent').hidden = true;
     },
     async 'live-call'() {
       const f = $('#form-new');
@@ -1212,6 +1389,11 @@ function bind() {
     },
     record: toggleRecording,
     'wa-import': importChat,
+    'wa-order'(btn) {
+      if (!chatImport) return;
+      chatImport.parsed = parseWhatsAppChat(chatImport.text, { orden: btn.dataset.orden });
+      renderChatImport();
+    },
     async evidence(btn) {
       if (!window.confirm('El paquete NO está cifrado: cualquiera que lo abra verá las pruebas. Entrégalo solo a la Policía, la Fiscalía o tu abogado, y bórralo de tu celular después. ¿Continuar?')) return;
       busy(btn, true, 'Preparando…');
@@ -1219,9 +1401,15 @@ function bind() {
         const pkg = await buildEvidencePackage(vault.log, (id) => vault.readFile(id), await reportOptions());
         download(`pruebas-escudo-${stamp()}.zip`, pkg.zip, 'application/zip');
         await custody('paquete', `${pkg.archivos} prueba(s)`);
-        say(pkg.problemas.length
-          ? `Paquete descargado, pero estas pruebas no coinciden con su huella: ${pkg.problemas.join(', ')}.`
-          : `Paquete descargado con ${pkg.archivos} prueba(s).`, pkg.problemas.length ? 'err' : 'ok');
+        const ilegibles = pkg.ilegibles || [];
+        const alteradas = pkg.problemas.filter((p) => !ilegibles.some((i) => p.startsWith(i)));
+        const avisos = [
+          alteradas.length && `estas pruebas no coinciden con su huella: ${alteradas.join(', ')}`,
+          ilegibles.length && `estas no se pudieron leer y no van en el paquete: ${ilegibles.join(', ')}`,
+        ].filter(Boolean);
+        say(avisos.length
+          ? `Paquete descargado, pero ${avisos.join('; ')}. El paquete incluye verificar.js para que cualquiera compruebe las huellas.`
+          : `Paquete descargado con ${pkg.archivos} prueba(s). Incluye verificar.js para que la Fiscalía compruebe que nada cambió.`, avisos.length ? 'err' : 'ok');
       } finally {
         busy(btn, false);
       }
@@ -1231,9 +1419,14 @@ function bind() {
       const r = await vault.verify();
       await custody('verificacion', r.ok ? 'Correcta' : 'Con problemas');
       busy(btn, false);
+      const problemas = [];
+      if (r.rotoEn >= 0) problemas.push(`la cadena se rompe en el registro ${r.rotoEn + 1}.`);
+      if (r.archivosAlterados.length) problemas.push(`Archivos dañados: ${r.archivosAlterados.join(', ')}.`);
+      if (r.sello === 'distinto') problemas.push('El total de registros no coincide con el último guardado: puede que se hayan quitado registros.');
+      if (r.archivosHuerfanos && r.archivosHuerfanos.length) problemas.push(`Hay ${r.archivosHuerfanos.length} archivo(s) sin su registro: puede que se haya borrado un registro.`);
       $('#verify-result').textContent = r.ok
         ? `Todo en orden: ${vault.log.length} registro(s) sin alteraciones.`
-        : `Atención: ${r.rotoEn >= 0 ? `la cadena se rompe en el registro ${r.rotoEn + 1}. ` : ''}${r.archivosAlterados.length ? `Archivos dañados: ${r.archivosAlterados.join(', ')}.` : ''}`;
+        : `Atención: ${problemas.join(' ')}`;
     },
     async 'report-html'() {
       const html = buildReportBody(vault.log, await reportOptions());
