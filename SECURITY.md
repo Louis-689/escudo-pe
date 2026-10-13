@@ -30,4 +30,6 @@ Escudo guarda información muy sensible de personas en riesgo. Si encuentras una
 - La hora de cada registro la da el reloj del teléfono, que la persona puede cambiar.
 - Los contactos de confianza del SOS (nombre y número) y la hora límite y el contacto de un trayecto en curso se guardan sin cifrar en `localStorage`, para que la alerta funcione sin contraseña. El destino del trayecto no se guarda; el plan de seguridad y la palabra clave familiar van cifrados en la bóveda. "Borrar todo" también elimina estos datos.
 - Escudo no envía mensajes: abre WhatsApp o la app de SMS con el texto listo. Si el celular no tiene saldo, datos o señal, el mensaje no sale; el botón "Llamar al 105" sigue siendo la primera opción en peligro inmediato.
+- Los datos personales del escrito de denuncia (nombre, DNI, domicilio, correo) no se guardan: se usan para armar el documento y se borran del formulario al bloquear.
+- Los metadatos EXIF se leen del archivo tal como llegó al teléfono de la víctima; Escudo no se conecta a nada para obtenerlos. Pueden haber sido alterados por quien envió la foto: son una pista para la investigación, no una prueba concluyente.
 - La ubicación del SOS es la del propio teléfono y solo se pide al pulsar el botón. Puede ser imprecisa en interiores.

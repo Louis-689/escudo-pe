@@ -39,6 +39,7 @@ export const EVENTOS_CUSTODIA = {
   restauracion: 'Restauración desde copia',
   importacion: 'Importación de chat de WhatsApp',
   contrasena: 'Cambio de contraseña',
+  denuncia: 'Generación del escrito de denuncia',
 };
 
 // Margen para relojes de celular desajustados.

@@ -60,6 +60,7 @@ a { color: var(--brand); }
   background: var(--card); border: 1px solid var(--line); border-radius: 10px;
   padding: 14px; margin: 12px 0;
 }
+[hidden] { display: none !important; }
 .stack > * + * { margin-top: 10px; }
 label { display: block; margin: 0 0 12px; font-weight: 600; }
 input, select, textarea, button { font: inherit; color: inherit; }
@@ -124,6 +125,7 @@ body.camo .top-actions, body.camo .foot { display: none; }
 .report dl { display: grid; grid-template-columns: 110px 1fr; gap: 4px 10px; margin: 0; }
 .report dt { font-weight: 600; }
 .report dd { margin: 0; overflow-wrap: anywhere; }
+.report li, .report p { overflow-wrap: anywhere; }
 .report .blank { border-bottom: 1px solid #111; display: inline-block; min-width: 140px; }
 .report .small { font-size: 0.8rem; color: #444; }
 .report button { display: none; }
@@ -158,3 +160,6 @@ a.link-btn.wa { border-color: #25d366; }
 .plan-section label input { margin-top: 4px; }
 #blindaje details { border-top: 1px solid var(--line); padding: 8px 0; }
 #blindaje li { margin: 4px 0; }
+.report .right { margin-left: 30%; }
+.report .firma { margin-top: 48px; }
+.report ol li, .report ul li { margin: 4px 0; }

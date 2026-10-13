@@ -129,7 +129,7 @@
           </label>
         </div>
         <label>Nombre del titular que aparece
-          <input name="titularCuenta" autocomplete="off" maxlength="120" placeholder="Ej. Juan Pér* Ram*">
+          <input name="titularCuenta" autocomplete="off" maxlength="120" placeholder="Ej. Jua* Pér*">
         </label>
         <p class="hint small">Al escribir el número o la cuenta en Yape, Plin o tu banco, la app suele mostrar el nombre del titular antes de pagar. Toma captura de esa pantalla, anota el nombre aquí y <b>no confirmes el pago</b>. Es un dato clave para la Fiscalía.</p>
         <label>Copia el mensaje tal cual
@@ -175,6 +175,41 @@
         <p class="hint">Un solo archivo con las pruebas originales, el informe y sus huellas, para entregarlo en la comisaría o a tu abogado. <b>No está cifrado</b>: bórralo de tu celular después de entregarlo.</p>
         <button type="button" data-action="evidence">Descargar paquete de pruebas</button>
       </div>
+      <form id="form-complaint" class="card">
+        <h2>⚖️ Denuncia directa ante la Fiscalía</h2>
+        <p class="hint">No necesitas pasar por la comisaría: cualquier persona puede denunciar ante el Ministerio Público (art. 326 del Código Procesal Penal). Escudo arma el escrito con tus hechos, los números, las cuentas, los titulares y las fotos con GPS, y pide las diligencias para identificarlos: titulares de líneas, geolocalización, secreto bancario, inmovilización de fondos y medidas de protección.</p>
+        <p class="hint small">Estos datos solo se usan para armar el escrito; no se guardan. Puedes dejarlos vacíos y llenarlos a mano.</p>
+        <div class="row">
+          <label>Nombre completo <input name="nombre" autocomplete="off" maxlength="160"></label>
+          <label>DNI <input name="dni" inputmode="numeric" autocomplete="off" maxlength="12"></label>
+        </div>
+        <label>Domicilio (para notificaciones) <input name="domicilio" autocomplete="off" maxlength="200"></label>
+        <div class="row">
+          <label>Celular <input name="celular" inputmode="tel" autocomplete="off" maxlength="20"></label>
+          <label>Ciudad <input name="ciudad" autocomplete="off" maxlength="60" placeholder="Ej. Lima"></label>
+        </div>
+        <label>Correo <input name="correo" type="email" autocomplete="off" maxlength="120"></label>
+        <label class="inline"><input type="checkbox" name="reserva" checked> Pedir reserva de mi identidad</label>
+        <div class="stack">
+          <button type="submit" class="primary">Ver escrito para imprimir y firmar</button>
+          <button type="button" data-action="complaint-download">Descargar escrito (texto)</button>
+        </div>
+        <h3>Dónde presentarlo</h3>
+        <ul id="complaint-where" class="contacts"></ul>
+        <p class="hint small">Lleva también el informe y el paquete de pruebas. Pide que te sellen una copia (cargo): es tu constancia.</p>
+      </form>
+
+      <form id="form-police" class="card">
+        <h2>🚫 Si la Policía no te hace caso</h2>
+        <p class="hint">Negarse a recibir una denuncia o no hacer nada puede ser delito (art. 377 del Código Penal). Prepara una queja y preséntala; también puedes denunciar directamente en la Fiscalía con el escrito de arriba.</p>
+        <label>¿Dónde fuiste? <input name="comisaria" autocomplete="off" maxlength="120" placeholder="Ej. Comisaría de Caquetá"></label>
+        <label>¿Cuándo? <input name="fechaIntento" autocomplete="off" maxlength="40" placeholder="Ej. 12/10/2026 a las 10 am"></label>
+        <label>¿Qué pasó? <textarea name="quePaso" rows="2" maxlength="600" placeholder="Ej. no quisieron recibir mi denuncia y me dijeron que no pague"></textarea></label>
+        <button type="submit">Descargar queja (texto)</button>
+        <h3>Dónde presentarla</h3>
+        <ul id="police-where" class="contacts"></ul>
+      </form>
+
       <form id="form-check" class="card">
         <h2>Comprobar un archivo</h2>
         <p class="hint">Elige una captura, audio o video para saber si es exactamente una de las pruebas registradas.</p>

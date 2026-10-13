@@ -74,7 +74,7 @@ export const PASOS = [
   },
   {
     titulo: 'Denuncia lo antes posible',
-    texto: 'Ve a la comisaría o al Depincri más cercano con tu informe de Escudo y tu celular. Tu identidad puede mantenerse en reserva.',
+    texto: 'Ve a la comisaría o al Depincri más cercano con tu informe de Escudo y tu celular. Si no te hacen caso, denuncia directamente en la Fiscalía: Escudo te arma el escrito (pestaña Informe). Tu identidad puede mantenerse en reserva.',
   },
   {
     titulo: 'Pide medidas de protección',
@@ -82,6 +82,6 @@ export const PASOS = [
   },
   {
     titulo: 'Reporta la cuenta',
-    texto: 'Si te piden pagar por Yape, Plin o una cuenta bancaria, repórtala también en tu banco o billetera digital.',
+    texto: 'Antes de bloquear, escribe el número o la cuenta en Yape, Plin o tu banco SIN pagar y toma captura del nombre del titular que aparece. Luego repórtala: en Yape, entra a un movimiento → "Necesito ayuda" → "Reportar extorsión" (es anónimo); en otros bancos, llama a su central.',
   },
 ];

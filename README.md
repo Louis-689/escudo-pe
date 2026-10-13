@@ -32,6 +32,15 @@ No existía una herramienta abierta, gratuita y pensada para el Perú que ayudar
 | **Blindaje digital** | Pasos concretos para cerrar WhatsApp, llamadas, Facebook, Instagram, TikTok y el celular: la información que los extorsionadores usan para presionarte. |
 | **Ayuda legal y psicológica** | ALEGRA 1884 (abogados gratis del Estado), Línea 113 (apoyo psicológico gratuito 24 h) y cómo pedir medidas de protección a la Fiscalía. |
 
+### Contraatacar con pruebas
+
+| Función | Para qué sirve |
+| --- | --- |
+| **Denuncia directa ante la Fiscalía** | Si la Policía no actúa, no hace falta pasar por la comisaría: toda persona puede denunciar ante el Ministerio Público (art. 326 del Código Procesal Penal). Escudo arma el escrito completo (hechos en orden, denunciados, pruebas con huellas) y **pide las diligencias que identifican a los extorsionadores**: titulares y geolocalización de las líneas (D. Leg. 1182, art. 230 CPP, D. Leg. 1708), levantamiento del secreto bancario (art. 235 CPP), inmovilización de fondos, bloqueo de las líneas, pericia y medidas de protección con reserva de identidad. Listo para imprimir, firmar y presentar en mesa de partes o en línea. |
+| **Queja si la Policía no hace nada** | Escrito de queja que cita el art. 377 del Código Penal (omisión o rehusamiento de actos funcionales), con los canales del Mininter/Inspectoría PNP y la Defensoría del Pueblo. |
+| **GPS y celular de las fotos que te envían** | Si una foto llega con sus metadatos (por ejemplo, enviada como "documento" por WhatsApp, por Telegram o por correo), Escudo lee las coordenadas GPS desde donde se tomó, la marca, el modelo y el número de serie del celular y la fecha. Quedan en la cadena de huellas y en la denuncia, con enlace al mapa. |
+| **Nombre del titular de la cuenta** | Yape, Plin y los bancos muestran parte del nombre del titular antes de pagar. Escudo te guía para capturarlo **sin pagar** y lo agrega a la denuncia, junto con cómo reportar la cuenta en Yape ("Reportar extorsión"). |
+
 ### Reunir pruebas y denunciar
 
 | Función | Para qué sirve |
@@ -126,6 +135,8 @@ js/core/whatsapp.js   Lectura de chats exportados de WhatsApp
 js/core/unzip.js      Lector de ZIP (para el chat exportado en iPhone)
 js/core/zip.js        Generador de ZIP sin dependencias
 js/core/safety.js     SOS, aviso de trayecto, plan de seguridad y blindaje digital
+js/core/exif.js       Metadatos de fotos (GPS, equipo, fecha) sin dependencias
+js/core/complaint.js  Escrito de denuncia ante la Fiscalía y queja por inacción policial
 js/data/contacts.js   Contactos oficiales y pasos a seguir (con fuentes)
 sw.js                 Service worker para uso sin internet
 tests/                Tests con node:test (sin dependencias)

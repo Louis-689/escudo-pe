@@ -8,6 +8,9 @@ import { extractIndicators, classifyPhone } from './core/indicators.js';
 import { parseWhatsAppChat, chatToIncidents } from './core/whatsapp.js';
 import { readZip } from './core/unzip.js';
 import { describeExif } from './core/exif.js';
+import {
+  buildComplaintText, buildComplaintBody, buildPoliceComplaintText, CANALES_DENUNCIA, CANALES_QUEJA,
+} from './core/complaint.js';
 import { CANALES, MEDIOS_PAGO, formatSoles } from './core/model.js';
 import { buildTextReport, buildHtmlReport, buildReportBody, formatDate } from './core/report.js';
 import { CONTACTOS, PASOS, VERIFICADO } from './data/contacts.js';
@@ -578,6 +581,8 @@ function lock() {
   $('#check-result').textContent = '';
   $('#verify-result').textContent = '';
   $('#form-new').reset();
+  $('#form-complaint').reset();
+  $('#form-police').reset();
   plan = null;
   $('#plan').replaceChildren();
   $('#clave-familiar').value = '';
@@ -638,6 +643,34 @@ function bind() {
 
   $('#exit').addEventListener('click', quickExit);
   $('#sos').addEventListener('click', openSos);
+  const whereList = (items) => items.map((c) => el('li', {},
+    el('b', {}, c.nombre), el('br'), c.detalle, el('br'),
+    el('a', { href: c.url, target: '_blank', rel: 'noopener noreferrer' }, 'Abrir')));
+  $('#complaint-where').replaceChildren(...whereList(CANALES_DENUNCIA));
+  $('#police-where').replaceChildren(...whereList(CANALES_QUEJA));
+  const complaintData = () => {
+    const f = $('#form-complaint');
+    return {
+      nombre: f.nombre.value, dni: f.dni.value, domicilio: f.domicilio.value,
+      celular: f.celular.value, ciudad: f.ciudad.value, correo: f.correo.value, reserva: f.reserva.checked,
+    };
+  };
+  $('#form-complaint').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const doc = new DOMParser().parseFromString(buildComplaintBody(vault.log, complaintData()), 'text/html');
+    $('#report-body').replaceChildren(...[...doc.body.childNodes].map((n) => document.adoptNode(n)));
+    await custody('denuncia', 'Vista para imprimir');
+    $('[data-action="report-download"]').hidden = true;
+    show('report');
+  });
+  $('#form-police').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const f = ev.target;
+    download(`queja-${stamp()}.txt`, buildPoliceComplaintText({
+      ...complaintData(), comisaria: f.comisaria.value, fechaIntento: f.fechaIntento.value, quePaso: f.quePaso.value,
+    }), 'text/plain');
+    say('Queja descargada. Imprímela, fírmala y preséntala, o pégala en el formulario en línea.', 'ok');
+  });
   renderBlindaje();
 
   $('#form-trusted').addEventListener('submit', (ev) => {
@@ -857,6 +890,10 @@ function bind() {
     back: () => (vault ? openApp() : previousView === 'unlock' ? showLocked() : show(previousView)),
     print: () => window.print(),
     'open-sos': openSos,
+    async 'complaint-download'() {
+      download(`denuncia-fiscalia-${stamp()}.txt`, buildComplaintText(vault.log, complaintData()), 'text/plain');
+      await custody('denuncia', 'Descarga en texto');
+    },
     'sos-send': sendSos,
     'sos-back': () => {
       if (vault && sosReturn === 'app') show('app');
@@ -898,6 +935,7 @@ function bind() {
       const doc = new DOMParser().parseFromString(html, 'text/html');
       $('#report-body').replaceChildren(...[...doc.body.childNodes].map((n) => document.adoptNode(n)));
       await custody('informe', 'Vista para imprimir');
+      $('[data-action="report-download"]').hidden = false;
       show('report');
     },
     async 'report-download'() {
