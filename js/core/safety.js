@@ -105,7 +105,7 @@ export const PLAN = [
   {
     titulo: 'Tu casa y tu negocio',
     items: [
-      ['camara', 'Tengo una cámara o un vecino que pueda ver la entrada.'],
+      ['camara', 'Tengo una cámara que graba la entrada y guarda el video en la nube (fuera de la casa), o un vecino que pueda verla.'],
       ['vecinos', 'Me organicé con vecinos o con la junta vecinal para avisarnos.'],
       ['comisaria', 'Tengo a mano el número de la comisaría del sector y del serenazgo.'],
       ['luces', 'La entrada está iluminada y no hay escondites cerca.'],
@@ -156,6 +156,7 @@ export const BLINDAJE = [
       'Pon bloqueo de pantalla con PIN o huella.',
       'Activa "Encontrar mi dispositivo" (Android) o "Buscar mi iPhone" para borrarlo a distancia si te lo roban.',
       'No instales apps que te envíen por mensaje ni abras enlaces de desconocidos.',
+      'Si la Policía te asesora para seguir en contacto con ellos, usa un chip y un celular aparte solo para eso, y deja tu número personal fuera.',
     ],
   },
 ];

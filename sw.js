@@ -1,6 +1,6 @@
 // Service worker: guarda la app en el teléfono para que funcione sin internet.
 // Sube la versión cuando cambie cualquier archivo de la lista.
-const CACHE = 'escudo-v6';
+const CACHE = 'escudo-v7';
 const FILES = [
   './',
   'index.html',

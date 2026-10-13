@@ -65,8 +65,8 @@ export const PASOS = [
     texto: 'En el chat: ⋮ → Más → Exportar chat → Incluir archivos. Impórtalo en Escudo: cada mensaje queda registrado con su número, fecha y hora.',
   },
   {
-    titulo: 'No intentes rastrearlos ni enfrentarlos',
-    texto: 'No respondas con amenazas ni envíes enlaces "para ubicarlos": te pone en más riesgo y puede invalidar las pruebas. Identificar al número y a los titulares de las cuentas lo hace la Policía con orden judicial; tu informe le da los datos para pedirlo.',
+    titulo: 'No intentes rastrearlos, engañarlos ni enfrentarlos',
+    texto: 'No respondas con amenazas, no les envíes enlaces "para ubicarlos" (IP loggers) ni les deposites montos pequeños "para ver el nombre": te pone en más riesgo, les da tus datos y puede invalidar las pruebas. Si quieres tenderles una trampa, hazlo con la Policía: pide un operativo controlado (entrega vigilada). Identificar al número y a los titulares de las cuentas lo hace la Policía con orden judicial; tu informe le da los datos para pedirlo.',
   },
   {
     titulo: 'No des datos personales ni familiares',

@@ -94,6 +94,10 @@
     <section id="tab-new" class="tab">
       <h1>Registrar una amenaza</h1>
       <p class="hint">Registra cada mensaje o llamada por separado, apenas ocurra.</p>
+      <div class="card stack" id="live-call">
+        <button type="button" class="primary" data-action="live-call">📞 Me están llamando ahora</button>
+        <p class="hint small">Pon la llamada en altavoz y toca "Grabar audio": la voz sirve para la pericia. No negocies ni muestres miedo; anota el número y lo que exigen.</p>
+      </div>
       <details class="card" id="wa-card">
         <summary><b>Importar un chat de WhatsApp</b> (rápido y más completo)</summary>
         <ol class="hint small">
@@ -190,7 +194,8 @@
           <label>Ciudad <input name="ciudad" autocomplete="off" maxlength="60" placeholder="Ej. Lima"></label>
         </div>
         <label>Correo <input name="correo" type="email" autocomplete="off" maxlength="120"></label>
-        <label class="inline"><input type="checkbox" name="reserva" checked> Pedir reserva de mi identidad</label>
+        <label class="inline"><input type="checkbox" name="reserva" checked> Pedir reserva de mi identidad (con clave o código)</label>
+        <label class="inline"><input type="checkbox" name="operativo"> Estoy dispuesto(a) a colaborar en un operativo controlado de la Policía (entrega vigilada) para capturarlos cuando cobren</label>
         <div class="stack">
           <button type="submit" class="primary">Ver escrito para imprimir y firmar</button>
           <button type="button" data-action="complaint-download">Descargar escrito (texto)</button>
@@ -198,6 +203,20 @@
         <h3>Dónde presentarlo</h3>
         <ul id="complaint-where" class="contacts"></ul>
         <p class="hint small">Lleva también el informe y el paquete de pruebas. Pide que te sellen una copia (cargo): es tu constancia.</p>
+      </form>
+
+      <form id="form-bank" class="card">
+        <h2>💸 Bloquea la cuenta del extorsionador</h2>
+        <p class="hint">Sin cuenta para cobrar, el extorsionador pierde su negocio o tiene que exponerse. Haz esto con cada cuenta que te dieron:</p>
+        <ol class="hint">
+          <li>Escribe el número en Yape, Plin o tu banco <b>sin pagar</b> y toma captura del nombre del titular. No deposites ni 10 céntimos: le das tu nombre y le muestras que pagarás.</li>
+          <li>En Yape: entra a un movimiento → "Necesito ayuda" → "Reportar extorsión".</li>
+          <li>Llama a la central de tu banco, pide el área de <b>fraudes</b> y envía este reporte al banco de esa cuenta.</li>
+          <li>En tu denuncia, Escudo ya pide el secreto bancario y la inmovilización de los fondos.</li>
+        </ol>
+        <ul id="bank-accounts" class="contacts"></ul>
+        <label>N.° de denuncia o carpeta fiscal (si ya lo tienes) <input name="numeroDenuncia" autocomplete="off" maxlength="60"></label>
+        <button type="submit">Descargar reporte para el banco</button>
       </form>
 
       <form id="form-police" class="card">
@@ -295,6 +314,7 @@
   <main id="view-sos" class="view" hidden>
     <h1>🚨 SOS</h1>
     <a class="big-call" href="tel:105">📞 Llamar al 105 (Policía)</a>
+    <a class="link-btn" href="tel:111">📞 Central 111 contra la extorsión (te dicen qué responder)</a>
     <button type="button" class="primary big" data-action="sos-send">📍 Avisar a mis contactos con mi ubicación</button>
     <p id="sos-status" class="hint" aria-live="polite"></p>
     <div id="sos-links" class="stack"></div>

@@ -51,6 +51,7 @@ function denunciante(d = {}) {
     correo: clean(d.correo, 120) || BLANK,
     ciudad: clean(d.ciudad, 60) || '__________',
     reserva: Boolean(d.reserva),
+    operativo: Boolean(d.operativo),
   };
 }
 
@@ -99,7 +100,7 @@ function sections(log, datos, generadoEn) {
   const diligencias = [];
   if (telefonos.length) {
     diligencias.push(`Se identifique a los titulares de las líneas ${f.telefonos.map((t) => t.valor).join(', ')} y se solicite a las empresas operadoras el registro de llamadas y mensajes y la geolocalización de los equipos (D. Leg. 1182; art. 230 del Código Procesal Penal; D. Leg. 1708, trámite en 24 horas en casos de extorsión).`);
-    diligencias.push('Una vez realizadas las diligencias de identificación y geolocalización, se oficie a la empresa operadora el bloqueo o la suspensión de las líneas usadas para amenazarme.');
+    diligencias.push('Se identifique el IMEI de los equipos que usaron esas líneas y, una vez realizadas las diligencias de identificación y geolocalización, se oficie a la empresa operadora y al RENTESEG el bloqueo de las líneas y de los equipos.');
   }
   if (cuentas.length || billeteras.length) {
     diligencias.push(`Se identifique a los titulares de las cuentas y billeteras ${[...cuentas, ...billeteras].join('; ')}, se solicite el levantamiento del secreto bancario (art. 235 del Código Procesal Penal) y la inmovilización de los fondos.`);
@@ -107,9 +108,20 @@ function sections(log, datos, generadoEn) {
   if (fotosGps.length) {
     diligencias.push(`Se analicen las coordenadas GPS contenidas en ${fotosGps.length === 1 ? 'la foto recibida' : `las ${fotosGps.length} fotos recibidas`} (${fotosGps.map((x) => `${x.nombre}: ${x.gps.lat}, ${x.gps.lon}`).join('; ')}), que podrían indicar desde dónde se tomaron.`);
   }
+  const waNumbers = [...new Set(incidents.filter((e) => e.canal === 'whatsapp' && e.contacto).map((e) => e.contacto))];
+  if (waNumbers.length) {
+    diligencias.push(`Se solicite a WhatsApp (Meta Platforms), por los canales de cooperación con autoridades, los datos de registro, las direcciones IP de conexión y los registros de actividad de las cuentas asociadas a ${waNumbers.join(', ')}, y su preservación inmediata.`);
+  }
+  const audios = incidents.flatMap((e) => e.adjuntos).filter((a) => /^audio\//.test(a.tipo) || /\.(opus|ogg|m4a|mp3|aac|wav|amr)$/i.test(a.nombre));
+  if (audios.length) {
+    diligencias.push(`Se realice pericia de identificación de voz sobre ${audios.length === 1 ? 'el audio' : `los ${audios.length} audios`} adjuntos y se compare con las voces registradas de investigados o internos en establecimientos penitenciarios.`);
+  }
   if (otros.length) diligencias.push(`Se investiguen los perfiles, correos, enlaces o placas mencionados: ${otros.join(', ')}.`);
   diligencias.push('Se realice pericia informática sobre mi celular y los archivos adjuntos, cuyas huellas SHA-256 figuran en el informe.');
-  diligencias.push(`Se dicten medidas de protección para mí y mi familia${d.reserva ? ', incluida la reserva de mi identidad,' : ''} y se me derive a la Unidad de Asistencia a Víctimas y Testigos.`);
+  if (d.operativo) {
+    diligencias.push('Manifiesto mi disposición a colaborar, bajo dirección fiscal y protección policial, en una diligencia de circulación y entrega vigilada (art. 340 del Código Procesal Penal) que permita la captura en flagrancia de quienes cobren.');
+  }
+  diligencias.push(`Se dicten medidas de protección para mí y mi familia${d.reserva ? ', incluida la reserva de mi identidad mediante clave o código, de modo que mis datos no figuren en lo que conozcan los investigados,' : ''} y se me derive a la Unidad de Asistencia a Víctimas y Testigos.`);
 
   return {
     d,
@@ -189,6 +201,48 @@ export function buildPoliceComplaintText(datos = {}, generadoEn = new Date()) {
     '4. Mi vida y la de mi familia están en riesgo. Solicito que se investigue esta conducta, que se reciba mi denuncia de inmediato y que se adopten medidas de protección.',
     '',
     'Adjunto: copia de mi informe de incidentes y, de ser posible, nombre o grado del efectivo que me atendió.',
+    '',
+    `${d.ciudad}, ${formatDate(generadoEn.toISOString()).split(',')[0]}`,
+    '',
+    '______________________________',
+    d.nombre,
+    `DNI ${d.dni}`,
+  ].join('\n');
+}
+
+/** Cuentas y billeteras que dio el extorsionador (no las que la víctima solo mencionó). */
+export function extortionAccounts(log) {
+  const f = consolidate(log);
+  const fromThem = (x) => x.origenes.some((o) => o !== 'descripcion');
+  return [
+    ...f.cuentas.filter(fromThem).map((c) => ({ valor: c.valor, medio: MEDIOS_PAGO[c.medio] || 'Cuenta', titular: c.titular || '', primera: c.primera, ultima: c.ultima, veces: c.veces })),
+    ...f.billeteras.filter(fromThem).map((b) => ({ valor: b.valor, medio: b.red, titular: '', primera: b.primera, ultima: b.ultima, veces: b.veces })),
+  ];
+}
+
+/**
+ * Reporte para el área de fraudes o de cumplimiento del banco o la billetera
+ * que recibe el dinero: les permite evaluar el bloqueo preventivo de la cuenta
+ * y comunicarlo a la UIF como operación sospechosa.
+ */
+export function buildBankReportText(log, datos = {}, generadoEn = new Date()) {
+  const d = denunciante(datos);
+  const cuentas = extortionAccounts(log);
+  const denuncia = clean(datos.numeroDenuncia, 60) || '__________ (si ya denunciaste)';
+  return [
+    'ASUNTO: Reporte de cuenta utilizada para extorsión. Solicito bloqueo preventivo y reporte de operación sospechosa a la UIF-Perú.',
+    '',
+    'Señores del área de prevención de fraudes / cumplimiento:',
+    '',
+    `Yo, ${d.nombre}, con DNI ${d.dni} y celular ${d.celular}, soy víctima del delito de extorsión (art. 200 del Código Penal). Los extorsionadores me exigieron depositar dinero en ${cuentas.length === 1 ? 'la siguiente cuenta' : 'las siguientes cuentas'}:`,
+    '',
+    ...(cuentas.length ? cuentas.map((c, i) => `${i + 1}. ${c.medio}: ${c.valor}${c.titular ? ` — titular que muestra la aplicación: ${c.titular}` : ''} — indicada ${c.veces} vez/veces entre el ${formatDate(c.primera)} y el ${formatDate(c.ultima)}.`) : ['1. ____________________']),
+    '',
+    `Número de denuncia o carpeta fiscal: ${denuncia}.`,
+    '',
+    'Solicito que, según sus políticas de prevención de fraude y de lavado de activos, evalúen el bloqueo preventivo de estas cuentas, conserven la información del titular y de sus movimientos para la Fiscalía y la Policía, y reporten la operación sospechosa a la Unidad de Inteligencia Financiera.',
+    '',
+    'No he realizado ningún depósito. Adjunto capturas de los mensajes en que me indicaron estas cuentas.',
     '',
     `${d.ciudad}, ${formatDate(generadoEn.toISOString()).split(',')[0]}`,
     '',

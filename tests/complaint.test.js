@@ -29,7 +29,7 @@ test('la denuncia ordena los hechos y pide las diligencias que corresponden', as
   assert.match(text, /Me exigieron S\/ 5,000\.00, a pagar por Yape 912345678, cuyo titular, según muestra la aplicación, es "Jua\* Pér\*"/);
   assert.match(text, /levantamiento del secreto bancario \(art\. 235/);
   assert.match(text, /coordenadas GPS .*casa\.jpg: -11\.975033, -76\.987583/);
-  assert.match(text, /bloqueo o la suspensión de las líneas/);
+  assert.match(text, /el bloqueo de las líneas y de los equipos/);
   assert.match(text, /incluida la reserva de mi identidad/);
   assert.doesNotMatch(text, /undefined|null|NaN/);
 });
@@ -67,5 +67,28 @@ test('no acusa a quien la víctima solo menciona ni usa el GPS de sus propias fo
   assert.match(text, /usuarios de las líneas[^\n]*\+51987654321/);
   assert.match(text, /usuarios de las líneas[^\n]*\+51912000111/);
   assert.doesNotMatch(text, /coordenadas GPS/);
-  assert.match(text, /Una vez realizadas las diligencias de identificación/);
+  assert.match(text, /una vez realizadas las diligencias de identificación/);
+});
+
+test('pide datos a WhatsApp, pericia de voz, bloqueo de IMEI y, si la víctima acepta, entrega vigilada', async () => {
+  const vault = await Vault.create(new MemoryStorage(), 'clave larga 123');
+  await vault.add({ ocurridoEn: '2026-10-12T08:00:00-05:00', canal: 'whatsapp', contacto: '987654321', mensaje: 'Paga o ya sabes' },
+    [{ nombre: 'PTT-20261012-WA0001.opus', tipo: 'audio/ogg', bytes: new Uint8Array([1, 2, 3]) }], NOW);
+  const text = buildComplaintText(vault.log, { operativo: true }, NOW);
+  assert.match(text, /WhatsApp \(Meta Platforms\).*\+51 987 654 321/);
+  assert.match(text, /pericia de identificación de voz sobre el audio/);
+  assert.match(text, /IMEI .*RENTESEG/);
+  assert.match(text, /entrega vigilada \(art\. 340/);
+  assert.doesNotMatch(buildComplaintText(vault.log, {}, NOW), /entrega vigilada/);
+});
+
+test('el reporte al banco lista solo las cuentas del extorsionador, con el titular mostrado', async () => {
+  const { buildBankReportText, extortionAccounts } = await import('../js/core/complaint.js');
+  const log = await sampleLog();
+  assert.equal(extortionAccounts(log).length, 1);
+  const text = buildBankReportText(log, { nombre: 'Rosa Quispe', numeroDenuncia: '123-2026' }, NOW);
+  assert.match(text, /Yape: 912345678 — titular que muestra la aplicación: Jua\* Pér\*/);
+  assert.match(text, /carpeta fiscal: 123-2026/);
+  assert.match(text, /UIF/);
+  assert.doesNotMatch(text, /undefined|NaN/);
 });

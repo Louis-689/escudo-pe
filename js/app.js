@@ -9,7 +9,8 @@ import { parseWhatsAppChat, chatToIncidents } from './core/whatsapp.js';
 import { readZip } from './core/unzip.js';
 import { describeExif } from './core/exif.js';
 import {
-  buildComplaintText, buildComplaintBody, buildPoliceComplaintText, CANALES_DENUNCIA, CANALES_QUEJA,
+  buildComplaintText, buildComplaintBody, buildPoliceComplaintText, buildBankReportText, extortionAccounts,
+  CANALES_DENUNCIA, CANALES_QUEJA,
 } from './core/complaint.js';
 import { CANALES, MEDIOS_PAGO, formatSoles } from './core/model.js';
 import { buildTextReport, buildHtmlReport, buildReportBody, formatDate } from './core/report.js';
@@ -88,6 +89,12 @@ function showTab(tab) {
   for (const b of $$('.tabs button')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
   for (const t of $$('.tab')) t.hidden = t.id !== 'tab-' + tab;
   if (tab === 'log') renderLog();
+  if (tab === 'report') {
+    const cuentas = extortionAccounts(vault.log);
+    $('#bank-accounts').replaceChildren(...(cuentas.length
+      ? cuentas.map((c) => el('li', {}, el('b', {}, `${c.medio}: ${c.valor}`), c.titular ? ` · titular: ${c.titular}` : ' · titular: aún no lo anotaste'))
+      : [el('li', {}, 'Aún no registraste ninguna cuenta del extorsionador.')]));
+  }
   if (tab === 'protect') {
     renderTrusted();
     renderTrip();
@@ -583,6 +590,8 @@ function lock() {
   $('#form-new').reset();
   $('#form-complaint').reset();
   $('#form-police').reset();
+  $('#form-bank').reset();
+  $('#bank-accounts').replaceChildren();
   plan = null;
   $('#plan').replaceChildren();
   $('#clave-familiar').value = '';
@@ -653,6 +662,7 @@ function bind() {
     return {
       nombre: f.nombre.value, dni: f.dni.value, domicilio: f.domicilio.value,
       celular: f.celular.value, ciudad: f.ciudad.value, correo: f.correo.value, reserva: f.reserva.checked,
+      operativo: f.operativo.checked,
     };
   };
   $('#form-complaint').addEventListener('submit', async (ev) => {
@@ -662,6 +672,12 @@ function bind() {
     await custody('denuncia', 'Vista para imprimir');
     $('[data-action="report-download"]').hidden = true;
     show('report');
+  });
+  $('#form-bank').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    if (!extortionAccounts(vault.log).length) return say('Primero registra la cuenta, Yape o Plin que te dieron (campo "Número de cuenta, Yape o Plin").', 'err');
+    download(`reporte-banco-${stamp()}.txt`, buildBankReportText(vault.log, { ...complaintData(), numeroDenuncia: ev.target.numeroDenuncia.value }), 'text/plain');
+    say('Reporte descargado. Envíalo al área de fraudes del banco de esa cuenta y del tuyo.', 'ok');
   });
   $('#form-police').addEventListener('submit', (ev) => {
     ev.preventDefault();
@@ -890,6 +906,13 @@ function bind() {
     back: () => (vault ? openApp() : previousView === 'unlock' ? showLocked() : show(previousView)),
     print: () => window.print(),
     'open-sos': openSos,
+    'live-call': () => {
+      const f = $('#form-new');
+      f.ocurridoEn.value = localDateTimeValue();
+      f.canal.value = 'llamada';
+      f.contacto.focus();
+      if (canRecord() && !recorder) say('Pon el altavoz y toca "🎙️ Grabar audio". Anota el número que aparece.', 'ok');
+    },
     async 'complaint-download'() {
       download(`denuncia-fiscalia-${stamp()}.txt`, buildComplaintText(vault.log, complaintData()), 'text/plain');
       await custody('denuncia', 'Descarga en texto');
