@@ -112,6 +112,31 @@ export class Vault {
     await this.storage.set('plan', await encryptJson(this.key, plan));
   }
 
+  /**
+   * Borrador cifrado: lo que la persona estaba escribiendo cuando la app se
+   * bloqueó sola. No entra en la bitácora ni en las copias de seguridad.
+   */
+  async saveDraft({ campos, archivos = [] }) {
+    const writes = { borrador: await encryptJson(this.key, { campos, archivos: archivos.map((a) => ({ nombre: a.nombre, tipo: a.tipo, recibida: Boolean(a.recibida) })) }) };
+    for (let i = 0; i < archivos.length; i++) writes['borrador:' + i] = await encryptBytes(this.key, archivos[i].bytes);
+    await this.storage.setMany(writes);
+  }
+
+  /** Devuelve el borrador (si hay) y lo elimina. */
+  async takeDraft() {
+    const box = await this.storage.get('borrador');
+    if (!box) return null;
+    const draft = await decryptJson(this.key, box);
+    const archivos = [];
+    for (let i = 0; i < draft.archivos.length; i++) {
+      const fileBox = await this.storage.get('borrador:' + i);
+      if (fileBox) archivos.push({ ...draft.archivos[i], bytes: await decryptBytes(this.key, fileBox) });
+      await this.storage.del('borrador:' + i);
+    }
+    await this.storage.del('borrador');
+    return { campos: draft.campos, archivos };
+  }
+
   /** Deja constancia de un evento de custodia en la bitácora encadenada. */
   async logCustody(evento, descripcion = '', dispositivo = globalThis.navigator?.userAgent || '') {
     return this.add({ tipo: 'custodia', evento, descripcion, dispositivo });

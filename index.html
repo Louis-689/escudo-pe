@@ -36,10 +36,10 @@
     </ul>
     <form id="form-setup" class="card">
       <label>Crea una contraseña (mínimo 6 caracteres)
-        <input name="p1" type="password" autocomplete="new-password" required minlength="6">
+        <input name="p1" type="password" autocomplete="off" required minlength="6">
       </label>
       <label>Repítela
-        <input name="p2" type="password" autocomplete="new-password" required minlength="6">
+        <input name="p2" type="password" autocomplete="off" required minlength="6">
       </label>
       <p class="hint">Si la olvidas no se puede recuperar. Usa una frase que no tenga que ver con tu nombre, DNI ni fecha de nacimiento.</p>
       <button type="submit" class="primary">Crear mi bitácora</button>
@@ -49,7 +49,7 @@
       <summary>Ya tengo una copia de seguridad</summary>
       <form id="form-import-setup">
         <label>Archivo de copia <input name="file" type="file" accept=".escudo,application/json" required></label>
-        <label>Contraseña de esa copia <input name="pw" type="password" autocomplete="current-password" required></label>
+        <label>Contraseña de esa copia <input name="pw" type="password" autocomplete="off" required></label>
         <button type="submit">Restaurar</button>
       </form>
     </details>
@@ -59,7 +59,7 @@
   <main id="view-unlock" class="view" hidden>
     <h1>Abre tu bitácora</h1>
     <form id="form-unlock" class="card">
-      <label>Contraseña <input name="pw" type="password" autocomplete="current-password" required></label>
+      <label>Contraseña <input name="pw" type="password" autocomplete="off" required></label>
       <button type="submit" class="primary">Abrir</button>
     </form>
     <p><a href="#" data-goto="help">¿Qué hago si me están extorsionando?</a></p>
@@ -74,7 +74,7 @@
        "Buscar" y pulsar Enter abre la bitácora. -->
   <main id="view-notes" class="view" hidden>
     <form id="form-notes" class="notes-search" autocomplete="off">
-      <input name="pw" type="password" placeholder="Buscar" aria-label="Buscar" autocomplete="off">
+      <input name="pw" type="search" placeholder="Buscar" aria-label="Buscar" autocomplete="off" autocapitalize="off" spellcheck="false">
     </form>
     <p id="notes-empty" class="hint" hidden>No se encontraron notas.</p>
     <textarea id="decoy" class="decoy" rows="12" aria-label="Nota" placeholder="Escribe una nota…"></textarea>
@@ -82,13 +82,14 @@
 
   <!-- Abierto -->
   <main id="view-app" class="view" hidden>
+    <p id="trip-banner" class="box warn" hidden></p>
     <nav class="tabs" role="tablist">
-      <button type="button" data-tab="new" aria-selected="true">Registrar</button>
-      <button type="button" data-tab="log">Bitácora</button>
-      <button type="button" data-tab="report">Informe</button>
-      <button type="button" data-tab="protect">Protección</button>
-      <button type="button" data-tab="help">Ayuda</button>
-      <button type="button" data-tab="settings">Ajustes</button>
+      <button type="button" role="tab" aria-controls="tab-new" data-tab="new" aria-selected="true">Registrar</button>
+      <button type="button" role="tab" aria-controls="tab-log" data-tab="log">Bitácora</button>
+      <button type="button" role="tab" aria-controls="tab-report" data-tab="report">Informe</button>
+      <button type="button" role="tab" aria-controls="tab-protect" data-tab="protect">Protección</button>
+      <button type="button" role="tab" aria-controls="tab-help" data-tab="help">Ayuda</button>
+      <button type="button" role="tab" aria-controls="tab-settings" data-tab="settings">Ajustes</button>
     </nav>
 
     <section id="tab-new" class="tab">
@@ -119,7 +120,7 @@
           <select name="canal" required></select>
         </label>
         <label>Número, perfil o persona que te contactó
-          <input name="contacto" inputmode="tel" autocomplete="off" placeholder="Ej. 987 654 321">
+          <input name="contacto" autocomplete="off" placeholder="Ej. 987 654 321 o @perfil">
         </label>
         <label>¿Cuánto te exigen? (S/)
           <input name="montoExigido" inputmode="decimal" autocomplete="off" placeholder="Ej. 2000">
@@ -198,6 +199,7 @@
         <label class="inline"><input type="checkbox" name="operativo"> Estoy dispuesto(a) a colaborar en un operativo controlado de la Policía (entrega vigilada) para capturarlos cuando cobren</label>
         <div class="stack">
           <button type="submit" class="primary">Ver escrito para imprimir y firmar</button>
+          <button type="button" data-action="complaint-copy">Copiar escrito (para la denuncia en línea)</button>
           <button type="button" data-action="complaint-download">Descargar escrito (texto)</button>
         </div>
         <h3>Dónde presentarlo</h3>
@@ -253,7 +255,7 @@
         <label>¿A dónde vas? <input name="destino" required maxlength="120" autocomplete="off" placeholder="Ej. mercado de Caquetá, puesto 14"></label>
         <label>¿Para qué? (opcional) <input name="motivo" maxlength="120" autocomplete="off"></label>
         <label>Si no aviso antes de las… <input name="hasta" type="time" required></label>
-        <label>¿A quién avisas? <select name="contacto" required></select></label>
+        <label>¿A quién avisas? <select name="contacto"></select></label>
         <button type="submit" class="primary">Preparar aviso</button>
       </form>
       <div id="trip-links" class="stack"></div>
@@ -292,15 +294,28 @@
       </div>
       <form id="form-password" class="card">
         <h2>Cambiar contraseña</h2>
-        <label>Nueva contraseña <input name="p1" type="password" autocomplete="new-password" required minlength="6"></label>
-        <label>Repítela <input name="p2" type="password" autocomplete="new-password" required minlength="6"></label>
+        <label>Nueva contraseña <input name="p1" type="password" autocomplete="off" required minlength="6"></label>
+        <label>Repítela <input name="p2" type="password" autocomplete="off" required minlength="6"></label>
         <button type="submit">Cambiar</button>
       </form>
       <div class="card stack">
         <h2>Modo camuflado</h2>
-        <p class="hint">Al cerrar, Escudo se verá como una libreta de notas. Para abrirlo, escribe tu contraseña en <b>Buscar</b> y pulsa Enter. Si alguien escribe otra cosa, solo verá "No se encontraron notas".</p>
+        <p class="hint">Al cerrar, Escudo se verá como una libreta de notas. Para abrirlo, escribe tu contraseña en <b>Buscar</b> y pulsa Enter. Si alguien escribe otra cosa, solo verá "No se encontraron notas". En una emergencia, escribe <b>sos</b> en Buscar para llamar al 105 o avisar a tus contactos.</p>
         <label class="inline"><input type="checkbox" id="camo"> Activar modo camuflado</label>
       </div>
+      <form id="form-duress" class="card">
+        <div id="duress-card">
+          <h2>Contraseña de emergencia</h2>
+          <p class="hint">Si alguien te obliga a abrir Escudo, escribe esta otra contraseña: se abrirá una bitácora <b>vacía</b> y creíble, y tus pruebas reales quedan ocultas y a salvo.</p>
+          <p id="duress-status" class="hint small" aria-live="polite"></p>
+          <label>Contraseña de emergencia <input name="p1" type="password" autocomplete="off" required minlength="6"></label>
+          <label>Repítela <input name="p2" type="password" autocomplete="off" required minlength="6"></label>
+          <div class="stack">
+            <button type="submit">Guardar contraseña de emergencia</button>
+            <button type="button" data-action="duress-remove" hidden>Quitar contraseña de emergencia</button>
+          </div>
+        </div>
+      </form>
       <div class="card danger-zone">
         <h2>Borrar todo</h2>
         <p class="hint">Elimina la bitácora y las pruebas de este teléfono. No se puede deshacer.</p>

@@ -27,6 +27,7 @@ export const CONTACTOS = [
     nombre: 'División de Secuestros y Extorsiones (Dirincri) – envío de pruebas',
     numero: '942841978',
     detalle: 'Para enviar videos, audios o capturas de los mensajes extorsivos. También: 966 834 447.',
+    whatsapp: '51942841978',
     fuente: 'https://www.americatv.com.pe/noticias/amp/actualidad/central-111-contra-extorsiones-ha-recibido-188-llamadas-n497516',
   },
   {

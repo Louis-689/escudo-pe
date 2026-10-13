@@ -126,3 +126,19 @@ test('importar una copia ignora claves extrañas y rechaza parámetros peligroso
   data.meta.iterations = 1e12;
   await assert.rejects(Vault.importBackup(new MemoryStorage(), JSON.stringify(data), 'clave-segura'), /no son válidos/);
 });
+
+test('el borrador cifrado sobrevive al bloqueo automático y se recupera una sola vez', async () => {
+  const storage = new MemoryStorage();
+  const v = await Vault.create(storage, 'clave larga 123');
+  await v.saveDraft({ campos: { contacto: '987654321', mensaje: 'te vamos a' }, archivos: [{ nombre: 'grabacion.webm', tipo: 'audio/webm', bytes: new Uint8Array([9, 8, 7]), recibida: false }] });
+  const raw = JSON.stringify([...storage.map.entries()]);
+  assert.doesNotMatch(raw, /te vamos a|987654321/);
+  const again = await Vault.open(storage, 'clave larga 123');
+  const d = await again.takeDraft();
+  assert.equal(d.campos.mensaje, 'te vamos a');
+  assert.deepEqual([...d.archivos[0].bytes], [9, 8, 7]);
+  assert.equal(await again.takeDraft(), null);
+  // El borrador no entra en la copia de seguridad.
+  await v.saveDraft({ campos: { mensaje: 'x' } });
+  assert.doesNotMatch(await v.exportBackup(), /borrador/);
+});

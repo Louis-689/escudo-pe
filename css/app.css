@@ -7,6 +7,7 @@
   --brand: #14532d;
   --brand-fg: #ffffff;
   --danger: #b42318;
+  --danger-bg: #b42318;
   --warn-bg: #fff4e5;
   --ok-bg: #e7f6ec;
   --err-bg: #fdecea;
@@ -53,7 +54,7 @@ a { color: var(--brand); }
   font-weight: 700; text-decoration: none;
 }
 .exit {
-  background: var(--danger); color: #fff; border: 0;
+  background: var(--danger-bg); color: #fff; border: 0;
   font-weight: 700; padding: 10px 14px; border-radius: 8px; min-height: 44px;
 }
 .card {
@@ -106,7 +107,7 @@ code, .hash { font-family: ui-monospace, monospace; font-size: 0.75rem; word-bre
 label.inline { display: flex; gap: 10px; align-items: center; }
 label.inline input { width: auto; min-height: 0; margin: 0; }
 .recorder { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
-#rec.recording { background: var(--danger); color: #fff; border-color: var(--danger); }
+#rec.recording { background: var(--danger-bg); color: #fff; border-color: var(--danger-bg); }
 .pending { list-style: none; padding: 0; margin: 0 0 8px; }
 .pending li { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
 .pending button { flex: 0 0 auto; white-space: nowrap; min-height: 36px; padding: 4px 10px; }
@@ -143,10 +144,10 @@ body.camo .top-actions, body.camo .foot { display: none; }
 .detected { margin: 6px 0; font-size: 0.9rem; }
 .detected ul { margin: 4px 0; padding-left: 20px; overflow-wrap: anywhere; }
 .risk-tag { color: var(--danger); font-weight: 700; }
-.sos { background: var(--danger); color: #fff; border: 2px solid #fff; font-weight: 800; letter-spacing: 1px; }
+.sos { background: var(--danger-bg); color: #fff; border: 2px solid #fff; font-weight: 800; letter-spacing: 1px; }
 .big-call {
   display: block; text-align: center; margin: 12px 0; padding: 16px; border-radius: 10px;
-  background: var(--danger); color: #fff; font-size: 1.2rem; font-weight: 800; text-decoration: none;
+  background: var(--danger-bg); color: #fff; font-size: 1.2rem; font-weight: 800; text-decoration: none;
 }
 button.big { padding: 16px; font-size: 1.05rem; }
 a.link-btn {
@@ -163,3 +164,4 @@ a.link-btn.wa { border-color: #25d366; }
 .report .right { margin-left: 30%; }
 .report .firma { margin-top: 48px; }
 .report ol li, .report ul li { margin: 4px 0; }
+#msg, #sos-status, #trip-banner { scroll-margin-top: 72px; }

@@ -63,6 +63,13 @@ export class IndexedDBStorage {
     });
   }
 
+  /** Cierra la conexión (necesario antes de borrar la base de datos). */
+  async close() {
+    if (!this.dbPromise) return;
+    try { (await this.dbPromise).close(); } catch { /* ya estaba cerrada */ }
+    this.dbPromise = null;
+  }
+
   get(key) { return this.run('readonly', (s) => s.get(key)); }
   set(key, value) { return this.run('readwrite', (s) => s.put(value, key)); }
   del(key) { return this.run('readwrite', (s) => s.delete(key)); }

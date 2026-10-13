@@ -20,6 +20,11 @@ import {
 } from './core/safety.js';
 
 const storage = new IndexedDBStorage();
+// Bitácora señuelo de la "contraseña de emergencia": si alguien obliga a la
+// persona a abrir Escudo, esa contraseña abre una bitácora vacía y creíble.
+const decoyStorage = new IndexedDBStorage('notas', 'datos');
+let isDecoy = false;
+let decoyPassword = '';
 const AUTO_LOCK_MS = 2 * 60 * 1000;
 const IDLE_LOCK_MS = 5 * 60 * 1000;
 const EXIT_URL = 'https://www.google.com/search?q=clima+lima';
@@ -34,6 +39,9 @@ let chatImport = null;
 let previousView = 'setup';
 let pendingFiles = [];
 let recorder = null;
+let recorderDone = null;
+let locking = false;
+let backTrapped = false;
 const objectUrls = new Set();
 const FAILS_KEY = 'escudo.intentos';
 // Contactos de confianza y trayecto en curso: sin cifrar, para que el SOS
@@ -83,11 +91,23 @@ function busy(button, on, label = 'Un momento…') {
 function show(view) {
   for (const v of $$('.view')) v.hidden = v.id !== 'view-' + view;
   window.scrollTo(0, 0);
+  if (['sos', 'report', 'help'].includes(view)) trapBack();
+}
+
+/** Deja una entrada en el historial para que el botón "atrás" de Android no cierre Escudo. */
+function trapBack() {
+  if (backTrapped) return;
+  try {
+    history.pushState({ escudo: true }, '');
+    backTrapped = true;
+  } catch { /* sin historial disponible */ }
 }
 
 function showTab(tab) {
   for (const b of $$('.tabs button')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
   for (const t of $$('.tab')) t.hidden = t.id !== 'tab-' + tab;
+  if (tab !== 'new') trapBack();
+  if (tab === 'settings') renderDuress();
   if (tab === 'log') renderLog();
   if (tab === 'report') {
     const cuentas = extortionAccounts(vault.log);
@@ -117,7 +137,8 @@ function renderHelp(target) {
   $('.steps', tpl).append(...PASOS.map((p) => el('li', {}, el('b', {}, p.titulo), el('br'), p.texto)));
   $('.contacts', tpl).append(...CONTACTOS.map((c) => el('li', {},
     el('b', {}, c.nombre), el('br'), c.detalle, el('br'),
-    el('a', { class: 'call', href: 'tel:' + c.numero }, 'Llamar al ' + c.numero.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')))));
+    el('a', { class: 'call', href: 'tel:' + c.numero }, 'Llamar al ' + c.numero.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')),
+    c.whatsapp && el('a', { class: 'call', href: 'https://wa.me/' + c.whatsapp, target: '_blank', rel: 'noopener noreferrer' }, 'Enviar pruebas por WhatsApp'))));
   $('.verified', tpl).textContent = VERIFICADO;
   target.replaceChildren(tpl);
 }
@@ -145,7 +166,7 @@ async function addPending(fileList) {
 function renderPending() {
   $('#pending').replaceChildren(...pendingFiles.map((f, i) => el('li', {},
     el('span', {}, f.nombre, ' ', el('span', { class: 'hint' }, `(${Math.ceil(f.bytes.length / 1024)} KB)`)),
-    el('button', { type: 'button', onclick: () => { pendingFiles.splice(i, 1); renderPending(); } }, 'Quitar'))));
+    el('button', { type: 'button', 'aria-label': `Quitar ${f.nombre}`, onclick: () => { pendingFiles.splice(i, 1); renderPending(); } }, 'Quitar'))));
 }
 
 // ---------- Importar chat de WhatsApp ----------
@@ -259,21 +280,28 @@ async function toggleRecording(btn) {
     $('#rec-status').textContent = `Grabando ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
   }, 500);
   rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+  let finish;
+  recorderDone = new Promise((resolve) => { finish = resolve; });
   rec.onstop = async () => {
-    clearInterval(timer);
-    stream.getTracks().forEach((t) => t.stop());
-    recorder = null;
-    btn.classList.remove('recording');
-    btn.textContent = '🎙️ Grabar audio';
-    $('#rec-status').textContent = '';
-    if (!vault || !chunks.length) return;
-    const type = rec.mimeType || 'audio/webm';
-    const ext = type.includes('ogg') ? 'ogg' : type.includes('mp4') ? 'm4a' : 'webm';
-    const blob = new Blob(chunks, { type });
-    const name = `grabacion-${localDateTimeValue(started).replace('T', '-').replace(':', '')}.${ext}`;
-    pendingFiles.push({ nombre: name, tipo: type.split(';')[0], bytes: new Uint8Array(await blob.arrayBuffer()) });
-    renderPending();
-    say('Grabación lista. Se guardará al pulsar "Guardar registro".', 'ok');
+    try {
+      clearInterval(timer);
+      stream.getTracks().forEach((t) => t.stop());
+      recorder = null;
+      btn.classList.remove('recording');
+      btn.textContent = '🎙️ Grabar audio';
+      $('#rec-status').textContent = '';
+      if (!vault || !chunks.length) return;
+      const type = rec.mimeType || 'audio/webm';
+      const ext = type.includes('ogg') ? 'ogg' : type.includes('mp4') ? 'm4a' : 'webm';
+      const blob = new Blob(chunks, { type });
+      const name = `grabacion-${localDateTimeValue(started).replace('T', '-').replace(':', '')}.${ext}`;
+      pendingFiles.push({ nombre: name, tipo: type.split(';')[0], bytes: new Uint8Array(await blob.arrayBuffer()) });
+      renderPending();
+      say('Grabación lista. Se guardará al pulsar "Guardar registro".', 'ok');
+    } finally {
+      recorderDone = null;
+      finish();
+    }
   };
   recorder = rec;
   rec.start(1000);
@@ -306,7 +334,7 @@ function renderTrusted() {
   const list = trustedContacts();
   $('#trusted').replaceChildren(...list.map((c, i) => el('li', {},
     el('span', {}, `${c.nombre} · ${c.numero}`),
-    el('button', { type: 'button', onclick: () => {
+    el('button', { type: 'button', 'aria-label': `Quitar a ${c.nombre}`, onclick: () => {
       setPref(SOS_KEY, JSON.stringify(list.filter((_, j) => j !== i)));
       renderTrusted();
     } }, 'Quitar'))));
@@ -342,18 +370,29 @@ function openSos() {
 
 async function sendSos(btn) {
   const contacts = trustedContacts();
-  if (!contacts.length) {
-    $('#sos-config').open = true;
-    $('#sos-status').textContent = 'Agrega al menos un contacto de confianza abajo.';
-    return;
-  }
+  const render = (ubicacion) => {
+    const text = sosMessage({ ubicacion });
+    if (contacts.length) {
+      linkButtons($('#sos-links'), contacts, text);
+    } else {
+      // Sin contactos guardados: WhatsApp o SMS dejan elegir a quién enviar.
+      $('#sos-links').replaceChildren(
+        el('a', { class: 'link-btn wa', href: 'https://wa.me/?text=' + encodeURIComponent(text), target: '_blank', rel: 'noopener noreferrer' }, 'WhatsApp: elegir a quién'),
+        el('a', { class: 'link-btn', href: 'sms:?&body=' + encodeURIComponent(text) }, 'SMS: elegir a quién'),
+      );
+    }
+  };
+  // Los botones salen al instante; si llega la ubicación, se agregan con ella.
+  render(null);
+  $('#sos-status').textContent = 'Buscando tu ubicación… Si no puedes esperar, envía ya: el mensaje sale sin ubicación.';
   busy(btn, true, 'Buscando tu ubicación…');
   const ubicacion = await myLocation();
   busy(btn, false);
-  $('#sos-status').textContent = ubicacion
-    ? 'Mensaje listo con tu ubicación. Toca un botón y pulsa "Enviar".'
-    : 'No se pudo obtener tu ubicación (activa el GPS si puedes). El mensaje sale igual. Toca un botón y pulsa "Enviar".';
-  linkButtons($('#sos-links'), contacts, sosMessage({ ubicacion }));
+  if (ubicacion) render(ubicacion);
+  $('#sos-status').textContent = (ubicacion
+    ? 'Listo: el mensaje incluye tu ubicación. Toca un botón y pulsa "Enviar".'
+    : 'No se pudo obtener tu ubicación (activa el GPS si puedes). Toca un botón y pulsa "Enviar".')
+    + (contacts.length ? '' : ' Para la próxima, agrega tus contactos de confianza abajo.');
 }
 
 function activeTrip() {
@@ -377,11 +416,19 @@ function renderTrip() {
   );
 }
 
+function renderTripBanner() {
+  const t = activeTrip();
+  const banner = $('#trip-banner');
+  banner.hidden = !t;
+  if (t) banner.textContent = `🛡️ Tienes un trayecto en curso: ${t.nombre} espera tu "Llegué bien" antes de las ${hhmm(new Date(t.hasta))}. Avísale en Protección.`;
+}
+
 function endTrip() {
   setPref(TRIP_KEY, null);
   setTimeout(() => {
     $('#trip-links').replaceChildren();
     renderTrip();
+    renderTripBanner();
   }, 500);
 }
 
@@ -441,7 +488,10 @@ const isCamo = () => getPref(CAMO_KEY) === '1';
 function applyLook(locked) {
   const camo = locked && isCamo();
   document.body.classList.toggle('camo', camo);
-  document.title = camo ? 'Notas' : 'Escudo';
+  // Con camuflaje, la pestaña y el selector de apps dicen "Notas" aunque esté abierta.
+  document.title = isCamo() ? 'Notas' : 'Escudo';
+  const icon = $('link[rel=icon]');
+  if (icon) icon.href = isCamo() ? 'icons/notes.svg' : 'icons/icon.svg';
   $('#brand').textContent = camo ? 'Notas' : 'Escudo';
 }
 
@@ -559,22 +609,89 @@ async function addNote(entry) {
 // ---------- Sesión ----------
 
 /** Abre la bóveda; tras varios intentos fallidos, espera cada vez más. */
+const WRONG_PASSWORD = 'Contraseña incorrecta.';
+
 async function tryOpen(password) {
+  // Más corto que el mínimo: no puede ser la contraseña (y en modo camuflado
+  // es una búsqueda normal), así que no cuenta como intento fallido.
+  if (String(password).length < 6) throw new Error(WRONG_PASSWORD);
   const fails = Number(getPref(FAILS_KEY)) || 0;
-  if (fails >= 3) await new Promise((r) => setTimeout(r, Math.min(30000, 1000 * 2 ** (fails - 3))));
+  if (fails >= 5) await new Promise((r) => setTimeout(r, Math.min(10000, 1000 * 2 ** (fails - 5))));
   try {
     const v = await Vault.open(storage, password);
     setPref(FAILS_KEY, null);
+    isDecoy = false;
     return v;
-  } catch (err) {
+  } catch {
+    // ¿Es la contraseña de emergencia? Abre la bitácora señuelo.
+    try {
+      if (await Vault.exists(decoyStorage)) {
+        const d = await Vault.open(decoyStorage, password);
+        setPref(FAILS_KEY, null);
+        isDecoy = true;
+        decoyPassword = password;
+        return d;
+      }
+    } catch { /* tampoco es la de emergencia */ }
     setPref(FAILS_KEY, String(fails + 1));
-    throw err;
+    throw new Error(WRONG_PASSWORD);
   }
 }
 
-function lock() {
-  if (recorder) recorder.stop();
+async function renderDuress() {
+  $('#form-duress').hidden = isDecoy;
+  if (isDecoy) return;
+  const on = await Vault.exists(decoyStorage).catch(() => false);
+  $('#duress-status').textContent = on
+    ? 'Activa. Si alguien te obliga a abrir Escudo, usa esa contraseña: verá una bitácora vacía.'
+    : 'No configurada.';
+  $('[data-action="duress-remove"]').hidden = !on;
+}
+
+const DRAFT_FIELDS = ['ocurridoEn', 'canal', 'contacto', 'montoExigido', 'medioPago', 'cuentaPago', 'titularCuenta', 'mensaje', 'descripcion'];
+
+/** Lo que la persona estaba escribiendo, o null si el formulario está vacío. */
+function collectDraft() {
+  const f = $('#form-new');
+  const campos = Object.fromEntries(DRAFT_FIELDS.map((k) => [k, f[k].value]));
+  campos.recibidas = f.recibidas.checked;
+  const typed = ['contacto', 'montoExigido', 'cuentaPago', 'titularCuenta', 'mensaje', 'descripcion'].some((k) => campos[k].trim()) || campos.canal;
+  if (!typed && !pendingFiles.length) return null;
+  return { campos, archivos: pendingFiles };
+}
+
+async function restoreDraft() {
+  let d = null;
+  try { d = await vault.takeDraft(); } catch { return; }
+  if (!d) return;
+  const f = $('#form-new');
+  for (const k of DRAFT_FIELDS) if (typeof d.campos[k] === 'string') f[k].value = d.campos[k];
+  f.recibidas.checked = Boolean(d.campos.recibidas);
+  pendingFiles = d.archivos.map(({ nombre, tipo, bytes }) => ({ nombre, tipo, bytes }));
+  renderPending();
+  say('Recuperamos el registro que estabas escribiendo cuando se cerró Escudo. Revísalo y pulsa "Guardar registro".', 'ok');
+}
+
+async function lock() {
+  if (locking) return;
+  locking = true;
+  try {
+    // La grabación en curso se termina y queda en el borrador, no se pierde.
+    if (recorder) {
+      const done = recorderDone;
+      recorder.stop();
+      await done;
+    }
+    const draft = vault && collectDraft();
+    if (draft) {
+      try { await vault.saveDraft(draft); } catch { /* sin espacio: el borrador no se guarda */ }
+    }
+  } finally {
+    locking = false;
+  }
   vault = null;
+  isDecoy = false;
+  decoyPassword = '';
   pendingFiles = [];
   renderPending();
   chatImport = null;
@@ -596,6 +713,7 @@ function lock() {
   $('#plan').replaceChildren();
   $('#clave-familiar').value = '';
   $('#trip-links').replaceChildren();
+  $('#form-duress').reset();
   say('');
   // Si se bloquea en medio de un SOS, la pantalla de emergencia sigue visible.
   if (!$('#view-sos').hidden) {
@@ -623,15 +741,40 @@ function openApp() {
   show('app');
   resetForm();
   showTab('new');
+  renderTripBanner();
+  restoreDraft();
 }
 
 async function wipe() {
   const answer = window.prompt('Esto borrará la bitácora y las pruebas de este teléfono. Escribe BORRAR para confirmar.');
   if (answer !== 'BORRAR') return;
+  if (isDecoy) {
+    // En la bitácora señuelo, "Borrar todo" solo vacía el señuelo: las pruebas reales quedan a salvo.
+    const pw = decoyPassword;
+    await Vault.wipe(decoyStorage);
+    vault = await Vault.create(decoyStorage, pw);
+    isDecoy = true;
+    decoyPassword = pw;
+    openApp();
+    say('Se borró todo.', 'ok');
+    return;
+  }
+  pendingFiles = [];
+  $('#form-new').reset();
+  await lock();
   await Vault.wipe(storage);
+  await Vault.wipe(decoyStorage);
   for (const key of [CAMO_KEY, DECOY_KEY, SOS_KEY, TRIP_KEY, FAILS_KEY]) setPref(key, null);
+  // Sin rastros: se eliminan las bases de datos, la caché y el service worker.
+  for (const s of [storage, decoyStorage]) {
+    await s.close();
+    try { indexedDB.deleteDatabase(s.dbName); } catch { /* el navegador lo borrará al limpiar datos */ }
+  }
+  try {
+    for (const k of await caches.keys()) await caches.delete(k);
+    for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+  } catch { /* sin service worker */ }
   applyLook(false);
-  vault = null;
   show('setup');
   say('Se borró todo.', 'ok');
 }
@@ -652,6 +795,36 @@ function bind() {
 
   $('#exit').addEventListener('click', quickExit);
   $('#sos').addEventListener('click', openSos);
+
+  $('#form-duress').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const f = ev.target;
+    if (isDecoy) return;
+    if (f.p1.value !== f.p2.value) return say('Las contraseñas no coinciden.', 'err');
+    const btn = $('button[type=submit]', f);
+    busy(btn, true, 'Guardando…');
+    try {
+      const same = await Vault.open(storage, f.p1.value).then(() => true, () => false);
+      if (same) throw new Error('Debe ser distinta de tu contraseña de siempre.');
+      await Vault.wipe(decoyStorage);
+      await Vault.create(decoyStorage, f.p1.value);
+      f.reset();
+      await renderDuress();
+      say('Contraseña de emergencia lista. Apréndela bien y no la anotes en el celular.', 'ok');
+    } catch (err) {
+      say(err.message, 'err');
+    } finally {
+      busy(btn, false);
+    }
+  });
+
+  // Botón "atrás" de Android: vuelve dentro de Escudo en vez de cerrarlo.
+  window.addEventListener('popstate', () => {
+    backTrapped = false;
+    if (!$('#view-sos').hidden) actions['sos-back']();
+    else if (!$('#view-report').hidden || !$('#view-help').hidden) actions.back();
+    else if (vault && !$('#view-app').hidden && $('#tab-new').hidden) showTab('new');
+  });
   const whereList = (items) => items.map((c) => el('li', {},
     el('b', {}, c.nombre), el('br'), c.detalle, el('br'),
     el('a', { href: c.url, target: '_blank', rel: 'noopener noreferrer' }, 'Abrir')));
@@ -705,6 +878,7 @@ function bind() {
     } catch (err) {
       $('#sos-status').textContent = err.message;
     }
+    $('#sos-status').scrollIntoView({ block: 'nearest' });
   });
 
   $('#form-trip').addEventListener('submit', async (ev) => {
@@ -725,6 +899,7 @@ function bind() {
       say('');
       f.reset();
       renderTrip();
+      renderTripBanner();
     } catch (err) {
       say(err.message, 'err');
     } finally {
@@ -854,6 +1029,11 @@ function bind() {
     ev.preventDefault();
     const pw = ev.target.pw.value;
     ev.target.reset();
+    // En modo camuflado, buscar "sos" abre la pantalla de emergencia.
+    if (/^\s*(sos|105|111|auxilio|ayuda)\s*$/i.test(pw)) {
+      openSos();
+      return;
+    }
     try {
       vault = await tryOpen(pw);
       openApp();
@@ -864,6 +1044,7 @@ function bind() {
   $('#decoy').addEventListener('input', (ev) => setPref(DECOY_KEY, ev.target.value));
   $('#camo').addEventListener('change', (ev) => {
     setPref(CAMO_KEY, ev.target.checked ? '1' : null);
+    applyLook(false);
     say(ev.target.checked
       ? 'Modo camuflado activado. Al cerrar, Escudo se verá como una libreta de notas.'
       : 'Modo camuflado desactivado.', 'ok');
@@ -889,6 +1070,10 @@ function bind() {
     const btn = $('button[type=submit]', f);
     busy(btn, true, 'Cambiando…');
     try {
+      if (!isDecoy && await Vault.exists(decoyStorage)) {
+        const same = await Vault.open(decoyStorage, f.p1.value).then(() => true, () => false);
+        if (same) throw new Error('Esa es tu contraseña de emergencia. Elige otra.');
+      }
       await vault.changePassword(f.p1.value);
       await custody('contrasena');
       f.reset();
@@ -903,15 +1088,38 @@ function bind() {
   const actions = {
     wipe,
     lock,
-    back: () => (vault ? openApp() : previousView === 'unlock' ? showLocked() : show(previousView)),
+    back: () => {
+      // Volver no borra lo que se estaba escribiendo.
+      if (vault) { applyLook(false); show('app'); } else if (previousView === 'unlock') showLocked(); else show(previousView);
+    },
     print: () => window.print(),
     'open-sos': openSos,
-    'live-call': () => {
+    async 'duress-remove'() {
+      if (isDecoy || !window.confirm('¿Quitar la contraseña de emergencia?')) return;
+      await Vault.wipe(decoyStorage);
+      await renderDuress();
+      say('Contraseña de emergencia quitada.', 'ok');
+    },
+    async 'complaint-copy'() {
+      const text = buildComplaintText(vault.log, complaintData());
+      try {
+        await navigator.clipboard.writeText(text);
+        say('Escrito copiado. Pégalo en el formulario de denuncia en línea o en un documento.', 'ok');
+      } catch {
+        download(`denuncia-fiscalia-${stamp()}.txt`, text, 'text/plain');
+      }
+      await custody('denuncia', 'Copiado como texto');
+    },
+    async 'live-call'() {
       const f = $('#form-new');
       f.ocurridoEn.value = localDateTimeValue();
       f.canal.value = 'llamada';
-      f.contacto.focus();
-      if (canRecord() && !recorder) say('Pon el altavoz y toca "🎙️ Grabar audio". Anota el número que aparece.', 'ok');
+      // Empieza a grabar de inmediato: pon la llamada en altavoz.
+      if (canRecord() && !recorder) {
+        await toggleRecording($('#rec'));
+        if (recorder) say('Grabando. Pon la llamada en altavoz. Anota el número que aparece y lo que exigen.', 'ok');
+      }
+      $('#rec').scrollIntoView({ block: 'center' });
     },
     async 'complaint-download'() {
       download(`denuncia-fiscalia-${stamp()}.txt`, buildComplaintText(vault.log, complaintData()), 'text/plain');
@@ -927,6 +1135,7 @@ function bind() {
       setPref(TRIP_KEY, null);
       $('#trip-links').replaceChildren();
       renderTrip();
+      renderTripBanner();
     },
     record: toggleRecording,
     'wa-import': importChat,
@@ -1008,7 +1217,8 @@ function bind() {
   }, 15000);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) hiddenAt = Date.now();
-    else if (vault && Date.now() - hiddenAt > AUTO_LOCK_MS) lock();
+    // Mientras se graba una llamada no se bloquea, para no cortar la grabación.
+    else if (vault && !recorder && Date.now() - hiddenAt > AUTO_LOCK_MS) lock();
   });
 }
 
