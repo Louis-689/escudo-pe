@@ -77,7 +77,14 @@ function hecho(e) {
 
 function sections(log, datos, generadoEn) {
   const d = denunciante(datos);
-  const f = consolidate(log);
+  const all = consolidate(log);
+  // Solo se acusa lo que vino del extorsionador; lo que la víctima solo mencionó en su descripción, no.
+  const fromThem = (x) => x.origenes.some((o) => o !== 'descripcion');
+  const f = {
+    ...all,
+    telefonos: all.telefonos.filter(fromThem), cuentas: all.cuentas.filter(fromThem), billeteras: all.billeteras.filter(fromThem),
+    perfiles: all.perfiles.filter(fromThem), correos: all.correos.filter(fromThem), enlaces: all.enlaces.filter(fromThem), placas: all.placas.filter(fromThem),
+  };
   const incidents = log.filter((e) => e.tipo === 'incidente').sort((a, b) => a.ocurridoEn.localeCompare(b.ocurridoEn));
   const telefonos = f.telefonos.map((t) => `${t.valor} (${t.tipo}, ${t.pais}; ${t.veces} vez/veces)`);
   const cuentas = f.cuentas.map((c) => `${c.medio ? (MEDIOS_PAGO[c.medio] || c.medio) + ' ' : ''}${c.valor}${c.titular ? `, titular mostrado "${c.titular}"` : ''}`);
@@ -92,7 +99,7 @@ function sections(log, datos, generadoEn) {
   const diligencias = [];
   if (telefonos.length) {
     diligencias.push(`Se identifique a los titulares de las líneas ${f.telefonos.map((t) => t.valor).join(', ')} y se solicite a las empresas operadoras el registro de llamadas y mensajes y la geolocalización de los equipos (D. Leg. 1182; art. 230 del Código Procesal Penal; D. Leg. 1708, trámite en 24 horas en casos de extorsión).`);
-    diligencias.push('Se oficie a la empresa operadora el bloqueo o la suspensión de las líneas usadas para amenazarme.');
+    diligencias.push('Una vez realizadas las diligencias de identificación y geolocalización, se oficie a la empresa operadora el bloqueo o la suspensión de las líneas usadas para amenazarme.');
   }
   if (cuentas.length || billeteras.length) {
     diligencias.push(`Se identifique a los titulares de las cuentas y billeteras ${[...cuentas, ...billeteras].join('; ')}, se solicite el levantamiento del secreto bancario (art. 235 del Código Procesal Penal) y la inmovilización de los fondos.`);

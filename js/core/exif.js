@@ -78,10 +78,13 @@ function exifDate(text, zone) {
   return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}${z}`;
 }
 
-function gpsCoord(parts, ref) {
+function gpsCoord(parts, ref, pos, neg) {
   if (!Array.isArray(parts) || parts.length < 3 || parts.some((n) => !Number.isFinite(n))) return undefined;
+  // Sin hemisferio no se puede saber el signo: mejor no dar una ubicación falsa.
+  const r = String(ref || '').toUpperCase();
+  if (r !== pos && r !== neg) return undefined;
   const v = parts[0] + parts[1] / 60 + parts[2] / 3600;
-  return /^[SW]$/i.test(ref || '') ? -v : v;
+  return r === neg ? -v : v;
 }
 
 /**
@@ -130,17 +133,20 @@ function parseExif(view, start, length) {
       if (typeof v === 'string' && v) out[key] = v.slice(0, 100);
     }
   }
-  const fecha = exifDate(out.fechaOriginal || out.fecha, out.zonaOriginal);
+  // Solo DateTimeOriginal es la fecha de la toma; DateTime es la última edición.
+  const fecha = exifDate(out.fechaOriginal, out.zonaOriginal);
+  const modificada = exifDate(out.fecha);
   delete out.fecha;
   delete out.zonaOriginal;
   delete out.fechaOriginal;
   if (fecha) out.fechaOriginal = fecha;
+  if (modificada) out.fechaModificacion = modificada;
 
   const gpsPtr = t.value(ifd0.get(GPS_POINTER));
   if (typeof gpsPtr === 'number') {
     const g = t.ifd(gpsPtr);
-    const lat = gpsCoord(t.value(g.get(2)), t.value(g.get(1)));
-    const lon = gpsCoord(t.value(g.get(4)), t.value(g.get(3)));
+    const lat = gpsCoord(t.value(g.get(2)), t.value(g.get(1)), 'N', 'S');
+    const lon = gpsCoord(t.value(g.get(4)), t.value(g.get(3)), 'E', 'W');
     if (lat !== undefined && lon !== undefined && Math.abs(lat) <= 90 && Math.abs(lon) <= 180 && (lat || lon)) {
       out.gps = { lat: Math.round(lat * 1e6) / 1e6, lon: Math.round(lon * 1e6) / 1e6 };
       const alt = t.value(g.get(6));

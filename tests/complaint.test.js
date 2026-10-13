@@ -13,7 +13,7 @@ async function sampleLog() {
   await vault.add({
     ocurridoEn: '2026-10-11T19:42:00-05:00', canal: 'whatsapp', contacto: '987654321',
     mensaje: 'Paga 5 mil o tu familia <b>sufre</b>', montoExigido: '5 mil', medioPago: 'yape', cuentaPago: '912345678', titularCuenta: 'Jua* Pér*',
-  }, [{ nombre: 'casa.jpg', tipo: 'image/jpeg', bytes: photo }], NOW);
+  }, [{ nombre: 'casa.jpg', tipo: 'image/jpeg', bytes: photo, recibida: true }], NOW);
   await vault.add({ ocurridoEn: '2026-10-10T08:00:00-05:00', canal: 'llamada', contacto: '+57 300 1234567', descripcion: 'Voz de hombre, acento extranjero' }, [], NOW);
   return vault.log;
 }
@@ -52,4 +52,20 @@ test('la queja contra la inacción policial cita el art. 377', () => {
   assert.match(text, /acudí a Comisaría de Caquetá/);
   assert.match(text, /art\. 377 del Código Penal/);
   assert.doesNotMatch(text, /undefined/);
+});
+
+test('no acusa a quien la víctima solo menciona ni usa el GPS de sus propias fotos', async () => {
+  const vault = await Vault.create(new MemoryStorage(), 'clave larga 123');
+  const photo = new Uint8Array(readFileSync(new URL('./fixtures/foto-gps.jpg', import.meta.url)));
+  await vault.add({
+    ocurridoEn: '2026-10-11T19:42:00-05:00', canal: 'presencial',
+    descripcion: 'Dejaron una nota en mi puerta. Mi hijo (987111222) también recibió una llamada.',
+  }, [{ nombre: 'nota-puerta.jpg', tipo: 'image/jpeg', bytes: photo }], NOW);
+  await vault.add({ ocurridoEn: '2026-10-12T08:00:00-05:00', canal: 'whatsapp', contacto: '987654321', mensaje: 'Deposita al 912000111' }, [], NOW);
+  const text = buildComplaintText(vault.log, {}, NOW);
+  assert.doesNotMatch(text, /987111222.*(usuarios|titulares)|usuarios de las líneas[^\n]*\+51987111222/);
+  assert.match(text, /usuarios de las líneas[^\n]*\+51987654321/);
+  assert.match(text, /usuarios de las líneas[^\n]*\+51912000111/);
+  assert.doesNotMatch(text, /coordenadas GPS/);
+  assert.match(text, /Una vez realizadas las diligencias de identificación/);
 });

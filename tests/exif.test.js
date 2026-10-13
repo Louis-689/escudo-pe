@@ -80,7 +80,7 @@ test('las fotos con GPS quedan en la cadena, en el informe y en los datos para l
   const e = await vault.add({
     ocurridoEn: '2026-10-12T09:00:00-05:00', canal: 'whatsapp', contacto: '987654321',
     mensaje: 'Ya sabemos dónde vives', medioPago: 'yape', cuentaPago: '912345678', titularCuenta: 'Juan Pér* Ram*',
-  }, [{ nombre: 'casa.jpg', tipo: 'image/jpeg', bytes: photo }, { nombre: 'nota.txt', tipo: 'text/plain', bytes: new TextEncoder().encode('hola') }]);
+  }, [{ nombre: 'casa.jpg', tipo: 'image/jpeg', bytes: photo, recibida: true }, { nombre: 'nota.txt', tipo: 'text/plain', bytes: new TextEncoder().encode('hola') }]);
   assert.equal(e.adjuntos[0].metadatos.modelo, 'Redmi Note 13');
   assert.equal(e.adjuntos[1].metadatos, undefined);
   assert.equal(e.titularCuenta, 'Juan Pér* Ram*');
@@ -96,4 +96,10 @@ test('las fotos con GPS quedan en la cadena, en el informe y en los datos para l
   const html = buildReportBody(vault.log);
   assert.match(html, /<strong>Con GPS\.<\/strong> casa\.jpg/);
   assert.match(html, /Titular mostrado: <strong>Juan Pér\* Ram\*<\/strong>/);
+});
+
+test('sin hemisferio no se inventa una ubicación y la fecha de edición no pasa por fecha de toma', () => {
+  const m = readExif(jpegWithExif({ latRef: '?', lonRef: '?' }));
+  assert.equal(m.gps, undefined);
+  assert.equal(m.fechaOriginal, '2026-10-11T19:42:05-05:00');
 });

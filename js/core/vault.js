@@ -89,6 +89,7 @@ export class Vault {
         // GPS, equipo y fecha de las fotos: quedan dentro de la cadena de huellas.
         const metadatos = readExif(f.bytes);
         if (metadatos) a.metadatos = metadatos;
+        if (f.recibida) a.recibida = true;
         writes['file:' + a.id] = await encryptBytes(this.key, f.bytes);
         adjuntos.push(a);
       }

@@ -128,10 +128,6 @@ export function extractIndicators(text) {
 }
 
 /** Texto de un registro sobre el que se buscan indicios. */
-function entryText(e) {
-  return [e.mensaje, e.descripcion].filter(Boolean).join('\n');
-}
-
 /**
  * Consolida los indicios de toda la bitácora, con cuántas veces aparecen,
  * la primera y la última fecha. Es la base de la sección para la Fiscalía.
@@ -140,7 +136,7 @@ export function consolidate(log) {
   const incidents = log.filter((e) => e.tipo === 'incidente');
   const buckets = {
     telefonos: new Map(), cuentas: new Map(), enlaces: new Map(), correos: new Map(),
-    perfiles: new Map(), placas: new Map(), billeteras: new Map(), riesgos: new Map(), titulares: new Map(),
+    perfiles: new Map(), placas: new Map(), billeteras: new Map(), riesgos: new Map(),
   };
   const fotos = [];
   const add = (bucket, key, item, e, origen) => {
@@ -169,18 +165,21 @@ export function consolidate(log) {
       const prev = buckets.cuentas.get(key);
       if (e.titularCuenta && !prev.titular) prev.titular = e.titularCuenta;
     }
-    if (e.titularCuenta) {
-      add('titulares', e.titularCuenta.toLowerCase(), { valor: e.titularCuenta, cuenta: e.cuentaPago, medio: e.medioPago || '' }, e, 'titular');
-    }
+    // Solo las fotos que envió el extorsionador: el GPS de las propias fotos es la casa de la víctima.
     for (const a of e.adjuntos) {
-      if (a.metadatos) fotos.push({ nombre: a.nombre, sha256: a.sha256, ocurridoEn: e.ocurridoEn, contacto: e.contacto, ...a.metadatos });
+      if (a.metadatos && a.recibida) fotos.push({ nombre: a.nombre, sha256: a.sha256, ocurridoEn: e.ocurridoEn, contacto: e.contacto, ...a.metadatos });
     }
 
-    const found = extractIndicators(entryText(e));
-    for (const t of found.telefonos) add('telefonos', t.valor, t, e, 'mensaje');
-    for (const c of found.cuentas) add('cuentas', c.digitos + '|' + (c.medio || ''), { valor: c.valor, medio: c.medio || '', tipo: c.tipo }, e, 'mensaje');
-    for (const k of ['enlaces', 'correos', 'perfiles', 'placas', 'billeteras', 'riesgos']) {
-      for (const x of found[k]) add(k, x.valor.toLowerCase(), x, e, 'mensaje');
+    // "mensaje" es lo que escribió el extorsionador; "descripcion", lo que anotó la víctima
+    // (puede nombrar a familiares). Se distinguen para no acusar a quien solo se menciona.
+    for (const [origen, text] of [['mensaje', e.mensaje], ['descripcion', e.descripcion]]) {
+      if (!text) continue;
+      const found = extractIndicators(text);
+      for (const t of found.telefonos) add('telefonos', t.valor, t, e, origen);
+      for (const c of found.cuentas) add('cuentas', c.digitos + '|' + (c.medio || ''), { valor: c.valor, medio: c.medio || '', tipo: c.tipo }, e, origen);
+      for (const k of ['enlaces', 'correos', 'perfiles', 'placas', 'billeteras', 'riesgos']) {
+        for (const x of found[k]) add(k, x.valor.toLowerCase(), x, e, origen);
+      }
     }
   }
 

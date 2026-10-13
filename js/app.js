@@ -193,7 +193,7 @@ async function importChat(btn) {
       const bytes = media.get(name);
       if (!bytes) return null;
       if (bytes.length > MAX_FILE_BYTES) { skipped.push(name); return null; }
-      return { nombre: name, tipo: mimeOf(name), bytes };
+      return { nombre: name, tipo: mimeOf(name), bytes, recibida: true };
     };
     const items = chatToIncidents(parsed, autores, { archivo: `chat "${chat.name}"` }).map(({ adjuntoNombres, ...input }) => {
       const files = adjuntoNombres.map(toFile).filter(Boolean);
@@ -794,7 +794,7 @@ function bind() {
     busy(btn, true, 'Guardando…');
     try {
       if (recorder) throw new Error('Detén la grabación antes de guardar.');
-      const files = pendingFiles;
+      const files = pendingFiles.map((p) => ({ ...p, recibida: f.recibidas.checked }));
       await vault.add({
         ocurridoEn: f.ocurridoEn.value,
         canal: f.canal.value,

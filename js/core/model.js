@@ -177,6 +177,7 @@ export function createEntry(input, now = new Date()) {
     adjuntos: (input.adjuntos || []).map((a) => ({
       id: a.id, nombre: a.nombre, tipo: a.tipo, tamano: a.tamano, sha256: a.sha256,
       ...(a.metadatos ? { metadatos: a.metadatos } : {}),
+      ...(a.recibida ? { recibida: true } : {}),
     })),
   };
 }
