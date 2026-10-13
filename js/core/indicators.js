@@ -140,8 +140,9 @@ export function consolidate(log) {
   const incidents = log.filter((e) => e.tipo === 'incidente');
   const buckets = {
     telefonos: new Map(), cuentas: new Map(), enlaces: new Map(), correos: new Map(),
-    perfiles: new Map(), placas: new Map(), billeteras: new Map(), riesgos: new Map(),
+    perfiles: new Map(), placas: new Map(), billeteras: new Map(), riesgos: new Map(), titulares: new Map(),
   };
+  const fotos = [];
   const add = (bucket, key, item, e, origen) => {
     const prev = buckets[bucket].get(key);
     if (prev) {
@@ -164,7 +165,15 @@ export function consolidate(log) {
       const p = classifyPhone(e.cuentaPago);
       const medio = e.medioPago || 'otro';
       const key = (p ? p.e164 : e.cuentaPago.replace(/\s/g, '')) + '|' + medio;
-      add('cuentas', key, { valor: e.cuentaPago, medio, tipo: p ? 'Billetera vinculada a celular' : 'Cuenta indicada' }, e, 'cuenta de pago');
+      add('cuentas', key, { valor: e.cuentaPago, medio, tipo: p ? 'Billetera vinculada a celular' : 'Cuenta indicada', titular: e.titularCuenta || '' }, e, 'cuenta de pago');
+      const prev = buckets.cuentas.get(key);
+      if (e.titularCuenta && !prev.titular) prev.titular = e.titularCuenta;
+    }
+    if (e.titularCuenta) {
+      add('titulares', e.titularCuenta.toLowerCase(), { valor: e.titularCuenta, cuenta: e.cuentaPago, medio: e.medioPago || '' }, e, 'titular');
+    }
+    for (const a of e.adjuntos) {
+      if (a.metadatos) fotos.push({ nombre: a.nombre, sha256: a.sha256, ocurridoEn: e.ocurridoEn, contacto: e.contacto, ...a.metadatos });
     }
 
     const found = extractIndicators(entryText(e));
@@ -179,5 +188,7 @@ export function consolidate(log) {
   for (const [k, map] of Object.entries(buckets)) {
     result[k] = [...map.values()].sort((a, b) => b.veces - a.veces || a.primera.localeCompare(b.primera));
   }
+  // Primero las fotos con GPS: son las que pueden ubicar a quien las tomó.
+  result.fotos = fotos.sort((a, b) => Number(Boolean(b.gps)) - Number(Boolean(a.gps)) || a.ocurridoEn.localeCompare(b.ocurridoEn));
   return result;
 }

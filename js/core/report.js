@@ -38,6 +38,21 @@ const RIESGO_TXT = {
   muerte: 'amenaza de muerte o sicariato', explosivos: 'explosivos', familia: 'menciona a la familia o a los hijos',
   armas: 'armas', vigilancia: 'dicen vigilar a la víctima, su casa o negocio', plazo: 'fijan un plazo',
 };
+const LEGAL_FOTO = 'Metadatos EXIF leídos de los archivos recibidos, tal como llegaron (no se modificaron). '
+  + 'Si una foto conserva GPS, indica desde dónde se tomó; la marca, el modelo y el número de serie ayudan a vincular un equipo incautado. '
+  + 'Se sugiere pericia informática sobre el archivo original.';
+
+function fotoLine(x) {
+  const parts = [];
+  if (x.gps) parts.push(`GPS ${x.gps.lat}, ${x.gps.lon}${x.gps.altitud !== undefined ? ` (${x.gps.altitud} m)` : ''} https://maps.google.com/?q=${x.gps.lat},${x.gps.lon}`);
+  const equipo = [x.marca, x.modelo].filter(Boolean).join(' ');
+  if (equipo) parts.push(`equipo ${equipo}`);
+  if (x.serieCamara) parts.push(`serie ${x.serieCamara}`);
+  if (x.fechaOriginal) parts.push(`tomada ${x.fechaOriginal.replace('T', ' ')}`);
+  if (x.software) parts.push(`software ${x.software}`);
+  return parts.join(' · ');
+}
+
 const DISPOSITIVO = 'Dispositivo de la víctima (para el acta): marca ____________ modelo ____________ IMEI ____________ línea ____________';
 
 function range(x) {
@@ -86,8 +101,12 @@ export function buildTextReport(log, { verificacion, generadoEn = new Date(), cr
   for (const t of f.telefonos) lines.push(`  - ${t.valor} · ${t.tipo}, ${t.pais} · ${t.veces} vez/veces · ${range(t)} · ${canales(t)} · origen: ${t.origenes.join(', ')}`);
   lines.push('Cuentas y billeteras para pagos. ' + LEGAL_CTA);
   if (!f.cuentas.length && !f.billeteras.length) lines.push('  (ninguna registrada)');
-  for (const c of f.cuentas) lines.push(`  - ${c.medio ? (MEDIOS_PAGO[c.medio] || c.medio) + ': ' : ''}${c.valor} · ${c.tipo} · ${c.veces} vez/veces · ${range(c)}`);
+  for (const c of f.cuentas) lines.push(`  - ${c.medio ? (MEDIOS_PAGO[c.medio] || c.medio) + ': ' : ''}${c.valor}${c.titular ? ` · titular mostrado: ${c.titular}` : ''} · ${c.tipo} · ${c.veces} vez/veces · ${range(c)}`);
   for (const b of f.billeteras) lines.push(`  - ${b.red}: ${b.valor} · ${range(b)}`);
+  if (f.fotos.length) {
+    lines.push('Metadatos de fotos recibidas. ' + LEGAL_FOTO);
+    for (const x of f.fotos) lines.push(`  - ${x.nombre} (${formatDate(x.ocurridoEn)}${x.contacto ? `, de ${x.contacto}` : ''}): ${fotoLine(x)}`);
+  }
   const otros = [...f.perfiles.map((x) => ['Perfil', x]), ...f.enlaces.map((x) => ['Enlace', x]), ...f.correos.map((x) => ['Correo', x]), ...f.placas.map((x) => ['Placa', x])];
   if (otros.length) {
     lines.push('Otros indicios:');
@@ -101,9 +120,13 @@ export function buildTextReport(log, { verificacion, generadoEn = new Date(), cr
     if (e.contacto) lines.push(`  Desde: ${e.contacto}`);
     if (e.montoExigido !== null) lines.push(`  Monto exigido: ${formatSoles(e.montoExigido)}`);
     if (e.medioPago || e.cuentaPago) lines.push(`  Pago indicado: ${MEDIOS_PAGO[e.medioPago] || ''} ${e.cuentaPago}`.trimEnd());
+    if (e.titularCuenta) lines.push(`  Titular mostrado por la app: ${e.titularCuenta}`);
     if (e.mensaje) lines.push(`  Mensaje: "${e.mensaje}"`);
     if (e.descripcion) lines.push(`  Descripción: ${e.descripcion}`);
-    for (const a of e.adjuntos) lines.push(`  Prueba: ${a.nombre} (${a.tamano} bytes) SHA-256 ${a.sha256}`);
+    for (const a of e.adjuntos) {
+      lines.push(`  Prueba: ${a.nombre} (${a.tamano} bytes) SHA-256 ${a.sha256}`);
+      if (a.metadatos) lines.push(`    Metadatos: ${fotoLine(a.metadatos)}`);
+    }
     for (const n of notesFor(log, e.id)) lines.push(`  Nota del ${formatDate(n.registradoEn)}: ${n.descripcion}`);
     lines.push(`  Registrado: ${formatDate(e.registradoEn)} · Huella ${e.huella}`);
   }
@@ -129,9 +152,10 @@ export function buildReportBody(log, { verificacion, generadoEn = new Date(), cr
         ${e.contacto ? `<dt>Desde</dt><dd>${escapeHtml(e.contacto)}</dd>` : ''}
         ${e.montoExigido !== null ? `<dt>Monto exigido</dt><dd>${escapeHtml(formatSoles(e.montoExigido))}</dd>` : ''}
         ${e.medioPago || e.cuentaPago ? `<dt>Pago indicado</dt><dd>${escapeHtml(MEDIOS_PAGO[e.medioPago] || '')} ${escapeHtml(e.cuentaPago)}</dd>` : ''}
+        ${e.titularCuenta ? `<dt>Titular mostrado</dt><dd>${escapeHtml(e.titularCuenta)}</dd>` : ''}
         ${e.mensaje ? `<dt>Mensaje</dt><dd><q>${escapeHtml(e.mensaje)}</q></dd>` : ''}
         ${e.descripcion ? `<dt>Descripción</dt><dd>${escapeHtml(e.descripcion)}</dd>` : ''}
-        ${e.adjuntos.map((a) => `<dt>Prueba</dt><dd>${escapeHtml(a.nombre)}<br><code>${escapeHtml(a.sha256)}</code></dd>`).join('')}
+        ${e.adjuntos.map((a) => `<dt>Prueba</dt><dd>${escapeHtml(a.nombre)}<br><code>${escapeHtml(a.sha256)}</code>${a.metadatos ? `<br>Metadatos: ${escapeHtml(fotoLine(a.metadatos))}` : ''}</dd>`).join('')}
         ${notesFor(log, e.id).map((n) => `<dt>Nota (${escapeHtml(formatDate(n.registradoEn))})</dt><dd>${escapeHtml(n.descripcion)}</dd>`).join('')}
         <dt>Registrado</dt><dd>${escapeHtml(formatDate(e.registradoEn))}<br><code>${escapeHtml(e.huella)}</code></dd>
       </dl>
@@ -158,7 +182,8 @@ ${f.riesgos.length ? `<p class="risk"><strong>Señales de riesgo:</strong> ${f.r
 ${f.telefonos.length ? `<table><thead><tr><th>Número</th><th>Tipo / país</th><th>Veces</th><th>Fechas</th><th>Canal</th></tr></thead><tbody>${f.telefonos.map((t) => `<tr><td>${escapeHtml(t.valor)}</td><td>${escapeHtml(t.tipo)}, ${escapeHtml(t.pais)}</td><td>${t.veces}</td><td>${escapeHtml(range(t))}</td><td>${escapeHtml(canales(t))}</td></tr>`).join('')}</tbody></table>` : '<p>Ninguno registrado.</p>'}
 <h3>Cuentas y billeteras para pagos</h3>
 <p class="small">${LEGAL_CTA}</p>
-${f.cuentas.length || f.billeteras.length ? `<table><thead><tr><th>Cuenta</th><th>Tipo</th><th>Veces</th><th>Fechas</th></tr></thead><tbody>${f.cuentas.map((c) => `<tr><td>${escapeHtml(c.medio ? (MEDIOS_PAGO[c.medio] || c.medio) + ': ' : '')}${escapeHtml(c.valor)}</td><td>${escapeHtml(c.tipo)}</td><td>${c.veces}</td><td>${escapeHtml(range(c))}</td></tr>`).join('')}${f.billeteras.map((b) => `<tr><td><code>${escapeHtml(b.valor)}</code></td><td>${escapeHtml(b.red)}</td><td>${b.veces}</td><td>${escapeHtml(range(b))}</td></tr>`).join('')}</tbody></table>` : '<p>Ninguna registrada.</p>'}
+${f.cuentas.length || f.billeteras.length ? `<table><thead><tr><th>Cuenta</th><th>Tipo</th><th>Veces</th><th>Fechas</th></tr></thead><tbody>${f.cuentas.map((c) => `<tr><td>${escapeHtml(c.medio ? (MEDIOS_PAGO[c.medio] || c.medio) + ': ' : '')}${escapeHtml(c.valor)}${c.titular ? `<br>Titular mostrado: <strong>${escapeHtml(c.titular)}</strong>` : ''}</td><td>${escapeHtml(c.tipo)}</td><td>${c.veces}</td><td>${escapeHtml(range(c))}</td></tr>`).join('')}${f.billeteras.map((b) => `<tr><td><code>${escapeHtml(b.valor)}</code></td><td>${escapeHtml(b.red)}</td><td>${b.veces}</td><td>${escapeHtml(range(b))}</td></tr>`).join('')}</tbody></table>` : '<p>Ninguna registrada.</p>'}
+${f.fotos.length ? `<h3>Metadatos de fotos recibidas</h3><p class="small">${LEGAL_FOTO}</p><ul>${f.fotos.map((x) => `<li>${x.gps ? '<strong>Con GPS.</strong> ' : ''}${escapeHtml(x.nombre)} (${escapeHtml(formatDate(x.ocurridoEn))}${x.contacto ? `, de ${escapeHtml(x.contacto)}` : ''}): ${escapeHtml(fotoLine(x))}</li>`).join('')}</ul>` : ''}
 ${f.perfiles.length || f.enlaces.length || f.correos.length || f.placas.length ? `<h3>Otros indicios</h3><ul>${[
     ...f.perfiles.map((x) => ['Perfil', x]), ...f.enlaces.map((x) => ['Enlace', x]),
     ...f.correos.map((x) => ['Correo', x]), ...f.placas.map((x) => ['Placa', x]),

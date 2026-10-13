@@ -5,6 +5,7 @@ import {
   deriveKey, newSalt, encryptJson, decryptJson, encryptBytes, decryptBytes, sha256Hex, KDF_ITERATIONS,
 } from './crypto.js';
 import { createEntry, appendEntry, verifyChain, newId } from './model.js';
+import { readExif } from './exif.js';
 
 export const MIN_PASSWORD = 6;
 export const MAX_FILE_BYTES = 15 * 1024 * 1024;
@@ -85,6 +86,9 @@ export class Vault {
           throw new Error(`"${f.nombre}" pesa más de ${MAX_FILE_BYTES / 1024 / 1024} MB.`);
         }
         const a = { id: newId(), nombre: f.nombre, tipo: f.tipo || 'application/octet-stream', tamano: f.bytes.length, sha256: await sha256Hex(f.bytes) };
+        // GPS, equipo y fecha de las fotos: quedan dentro de la cadena de huellas.
+        const metadatos = readExif(f.bytes);
+        if (metadatos) a.metadatos = metadatos;
         writes['file:' + a.id] = await encryptBytes(this.key, f.bytes);
         adjuntos.push(a);
       }

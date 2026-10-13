@@ -7,11 +7,12 @@ import { buildEvidencePackage, findByHash } from './core/evidence.js';
 import { extractIndicators, classifyPhone } from './core/indicators.js';
 import { parseWhatsAppChat, chatToIncidents } from './core/whatsapp.js';
 import { readZip } from './core/unzip.js';
+import { describeExif } from './core/exif.js';
 import { CANALES, MEDIOS_PAGO, formatSoles } from './core/model.js';
 import { buildTextReport, buildHtmlReport, buildReportBody, formatDate } from './core/report.js';
 import { CONTACTOS, PASOS, VERIFICADO } from './data/contacts.js';
 import {
-  normalizeContact, nextLimaTime, hhmm, sosMessage, tripMessage, arrivalMessage, whatsappLink, smsLink, PLAN, BLINDAJE,
+  normalizeContact, nextLimaTime, mapsLink, hhmm, sosMessage, tripMessage, arrivalMessage, whatsappLink, smsLink, PLAN, BLINDAJE,
 } from './core/safety.js';
 
 const storage = new IndexedDBStorage();
@@ -492,12 +493,19 @@ function renderLog() {
       e.contacto && el('div', {}, 'Desde: ', el('b', {}, e.contacto)),
       e.montoExigido !== null && el('div', {}, 'Exigen: ', el('b', {}, formatSoles(e.montoExigido))),
       (e.medioPago || e.cuentaPago) && el('div', {}, 'Pago: ', MEDIOS_PAGO[e.medioPago] || '', ' ', e.cuentaPago),
+      e.titularCuenta && el('div', {}, 'Titular que muestra la app: ', el('b', {}, e.titularCuenta)),
       e.mensaje && el('div', { class: 'quote' }, e.mensaje),
       e.descripcion && el('div', {}, e.descripcion),
       ...notes.filter((n) => n.refiereA === e.id).map((n) => el('div', { class: 'note' },
         el('span', { class: 'meta' }, 'Nota del ', formatDate(n.registradoEn), ': '), n.descripcion)),
       el('div', { class: 'meta' }, 'Registrado ', formatDate(e.registradoEn)),
       renderDetected(e),
+      ...e.adjuntos.filter((a) => a.metadatos).map((a) => el('div', { class: 'detected' },
+        el('b', {}, a.metadatos.gps ? '📍 Foto con ubicación: ' : '📷 Datos de la foto: '), a.nombre, el('br'),
+        describeExif(a.metadatos),
+        a.metadatos.gps && el('div', {}, el('a', {
+          href: mapsLink(a.metadatos.gps.lat, a.metadatos.gps.lon), target: '_blank', rel: 'noopener noreferrer',
+        }, 'Ver en el mapa')))),
       el('div', { class: 'meta hash' }, 'Huella: ', e.huella),
     );
     const preview = el('div', { class: 'preview' });
@@ -761,6 +769,7 @@ function bind() {
         montoExigido: f.montoExigido.value,
         medioPago: f.medioPago.value,
         cuentaPago: f.cuentaPago.value,
+        titularCuenta: f.titularCuenta.value,
         mensaje: f.mensaje.value,
         descripcion: f.descripcion.value,
       }, files);

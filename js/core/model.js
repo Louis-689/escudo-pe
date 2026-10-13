@@ -171,9 +171,11 @@ export function createEntry(input, now = new Date()) {
     montoExigido: parseAmount(input.montoExigido),
     medioPago: input.medioPago || '',
     cuentaPago: String(input.cuentaPago ?? '').trim(),
+    titularCuenta: String(input.titularCuenta ?? '').trim().slice(0, 120) || undefined,
     mensaje: String(input.mensaje ?? '').trim(),
     adjuntos: (input.adjuntos || []).map((a) => ({
       id: a.id, nombre: a.nombre, tipo: a.tipo, tamano: a.tamano, sha256: a.sha256,
+      ...(a.metadatos ? { metadatos: a.metadatos } : {}),
     })),
   };
 }
