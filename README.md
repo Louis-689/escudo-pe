@@ -25,7 +25,7 @@ No existía una herramienta abierta, gratuita y pensada para el Perú que ayudar
 
 | Función | Para qué sirve |
 | --- | --- |
-| **Botón SOS** | Siempre visible, incluso sin contraseña. Llama al 105 o, con un toque, prepara un mensaje de alerta con **tu** ubicación GPS para tus contactos de confianza por WhatsApp o SMS (uno o todos a la vez). Solo tienes que pulsar "Enviar". |
+| **Botón SOS** | Siempre visible, incluso sin contraseña. Llama al 105 o, con un toque, prepara un mensaje de alerta con **tu** ubicación GPS para tus contactos de confianza por WhatsApp o SMS (a uno o a cada uno). Solo tienes que pulsar "Enviar". |
 | **Aviso de trayecto** | Antes de ir a un cobro, una reunión o abrir el negocio, avisas a un contacto a dónde vas y hasta qué hora debe saber de ti. Si no le escribes "Llegué bien", da la alarma, aunque te quiten el celular. |
 | **Plan de seguridad** | Lista práctica para la familia, las rutinas, la casa o el negocio y la denuncia, con avance guardado y cifrado. |
 | **Palabra clave familiar** | Una palabra que solo tu familia sabe, para desarmar el "tenemos a tu hijo" de una llamada falsa. Se guarda cifrada. |

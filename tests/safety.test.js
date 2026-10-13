@@ -15,6 +15,10 @@ test('normalizeContact valida nombre y número', () => {
   assert.deepEqual(normalizeContact({ nombre: 'Tío', numero: '+1 305 555 0100' }).numero, '+13055550100');
   assert.throws(() => normalizeContact({ nombre: '', numero: '987654321' }), /nombre/);
   assert.throws(() => normalizeContact({ nombre: 'X', numero: '123' }), /no es válido/);
+  // Un celular con un dígito de menos no se convierte en un número extranjero.
+  assert.throws(() => normalizeContact({ nombre: 'X', numero: '987 654 32' }), /no es válido/);
+  assert.throws(() => normalizeContact({ nombre: 'X', numero: '0987654321' }), /no es válido/);
+  assert.throws(() => normalizeContact({ nombre: 'X', numero: '+0987654321' }), /no es válido/);
 });
 
 test('mensajes de SOS y de trayecto incluyen ubicación y hora de Lima', () => {
@@ -61,7 +65,9 @@ test('nextLimaTime usa la hora de Lima sin importar la zona del celular', () => 
   const now = new Date('2026-10-13T01:49:00Z'); // 20:49 del 12/10 en Lima
   assert.equal(nextLimaTime('23:59', now).toISOString(), '2026-10-13T04:59:00.000Z');
   assert.equal(nextLimaTime('08:00', now).toISOString(), '2026-10-13T13:00:00.000Z');
-  assert.equal(nextLimaTime('20:00', now).toISOString(), '2026-10-14T01:00:00.000Z');
+  assert.throws(() => nextLimaTime('20:00', now), /ya pasó/);
+  const msg = tripMessage({ destino: 'x', hasta: nextLimaTime('08:00', now), ahora: now });
+  assert.match(msg, /antes de las 08:00 de mañana/);
   assert.throws(() => nextLimaTime('25:00', now), /hora límite/);
   assert.throws(() => nextLimaTime('', now), /hora límite/);
 });

@@ -286,10 +286,8 @@ function linkButtons(target, contacts, text) {
   const links = contacts.map((c) => el('a', {
     class: 'link-btn wa', href: whatsappLink(c.numero, text), target: '_blank', rel: 'noopener noreferrer',
   }, `WhatsApp a ${c.nombre}`));
-  if (contacts.length) {
-    links.push(el('a', { class: 'link-btn', href: smsLink(contacts.map((c) => c.numero), text) },
-      contacts.length > 1 ? `SMS a los ${contacts.length} contactos` : `SMS a ${contacts[0].nombre}`));
-  }
+  // Un SMS por contacto: los enlaces con varios destinatarios no funcionan igual en todos los celulares.
+  for (const c of contacts) links.push(el('a', { class: 'link-btn', href: smsLink([c.numero], text) }, `SMS a ${c.nombre}`));
   target.replaceChildren(...links);
 }
 
@@ -377,7 +375,11 @@ function endTrip() {
 }
 
 async function renderPlan() {
-  plan = await vault.getPlan();
+  const owner = vault;
+  const loaded = await owner.getPlan();
+  // Si se bloqueó mientras se descifraba, no se muestra nada.
+  if (vault !== owner) return;
+  plan = loaded;
   $('#clave-familiar').value = plan.palabraClave || '';
   $('#plan').replaceChildren(...PLAN.map((sec) => el('div', { class: 'plan-section' },
     el('h3', {}, sec.titulo),
@@ -412,11 +414,15 @@ function getPref(key) {
   try { return localStorage.getItem(key); } catch { return null; }
 }
 
+/** Devuelve false si el navegador no deja guardar (modo privado, datos bloqueados). */
 function setPref(key, value) {
   try {
     if (value === null) localStorage.removeItem(key);
     else localStorage.setItem(key, value);
-  } catch { /* almacenamiento bloqueado: se usa el modo normal */ }
+    return localStorage.getItem(key) === value;
+  } catch {
+    return false;
+  }
 }
 
 const isCamo = () => getPref(CAMO_KEY) === '1';
@@ -633,7 +639,9 @@ function bind() {
       const list = trustedContacts();
       if (list.length >= 5) throw new Error('Máximo 5 contactos de confianza.');
       if (list.some((x) => x.numero === c.numero)) throw new Error('Ese número ya está en tu lista.');
-      setPref(SOS_KEY, JSON.stringify([...list, c]));
+      if (!setPref(SOS_KEY, JSON.stringify([...list, c]))) {
+        throw new Error('Este navegador no deja guardar contactos (¿modo privado?). Abre Escudo en una ventana normal.');
+      }
       ev.target.reset();
       $('#sos-status').textContent = `${c.nombre} agregado.`;
       renderTrusted();
@@ -652,7 +660,9 @@ function bind() {
       const hasta = nextLimaTime(f.hasta.value);
       busy(btn, true, 'Buscando tu ubicación…');
       const text = tripMessage({ destino: f.destino.value, motivo: f.motivo.value, hasta, ubicacion: await myLocation() });
-      setPref(TRIP_KEY, JSON.stringify({ hasta: hasta.toISOString(), nombre: c.nombre, numero: c.numero }));
+      if (!setPref(TRIP_KEY, JSON.stringify({ hasta: hasta.toISOString(), nombre: c.nombre, numero: c.numero }))) {
+        say('Este navegador no deja guardar el trayecto: si cierras Escudo, no verás el botón "Llegué bien".', 'err');
+      }
       linkButtons($('#trip-links'), [c], text);
       $('#trip-links').prepend(el('p', { class: 'hint' }, 'Envía el aviso. Cuando llegues, vuelve aquí y toca "Llegué bien".'));
       say('');
@@ -924,8 +934,7 @@ function bind() {
     document.addEventListener(type, () => { lastActivity = Date.now(); }, { passive: true });
   }
   setInterval(() => {
-    // No se bloquea en medio de una emergencia.
-    if (vault && !recorder && $('#view-sos').hidden && Date.now() - lastActivity > IDLE_LOCK_MS) lock();
+    if (vault && !recorder && Date.now() - lastActivity > IDLE_LOCK_MS) lock();
   }, 15000);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) hiddenAt = Date.now();

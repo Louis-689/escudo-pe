@@ -10,9 +10,12 @@ import { classifyPhone } from './indicators.js';
 /** Valida un contacto de confianza. Devuelve { nombre, numero } normalizado o lanza error. */
 export function normalizeContact({ nombre, numero }) {
   const n = String(nombre ?? '').trim().slice(0, 40);
-  const p = classifyPhone(numero) || classifyPhone('+' + String(numero ?? '').replace(/\D/g, ''));
+  // Sin adivinar: un celular peruano mal escrito no debe convertirse en un número extranjero.
+  const p = classifyPhone(numero);
   if (!n) throw new Error('Escribe el nombre del contacto.');
-  if (!p) throw new Error('El número no es válido. Ejemplo: 987 654 321.');
+  if (!p || p.e164.startsWith('+0')) {
+    throw new Error('El número no es válido. Ejemplo: 987 654 321 (o +código de país si es del extranjero).');
+  }
   return { nombre: n, numero: p.e164 };
 }
 
@@ -25,16 +28,20 @@ export function hhmm(date) {
   return date.toLocaleTimeString('es-PE', { timeZone: 'America/Lima', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 }
 
+const limaDate = (d) => new Date(d.getTime() - 5 * 3600 * 1000).toISOString().slice(0, 10);
+const RECENT_PAST_MS = 6 * 3600 * 1000;
+
 /**
- * Próxima vez que el reloj de Lima marque "HH:MM" (hoy o mañana).
- * Perú no usa horario de verano: siempre UTC-5.
+ * Próxima vez que el reloj de Lima marque "HH:MM". Una hora que pasó hace poco
+ * es un error de la persona, no "mañana". Perú no usa horario de verano: UTC-5.
  */
 export function nextLimaTime(value, now = new Date()) {
   const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(value ?? ''));
   if (!m) throw new Error('Indica la hora límite.');
-  const today = new Date(now.getTime() - 5 * 3600 * 1000).toISOString().slice(0, 10);
-  const d = new Date(`${today}T${m[1]}:${m[2]}:00-05:00`);
-  return d > now ? d : new Date(d.getTime() + 24 * 3600 * 1000);
+  const d = new Date(`${limaDate(now)}T${m[1]}:${m[2]}:00-05:00`);
+  if (d > now) return d;
+  if (now - d < RECENT_PAST_MS) throw new Error('Esa hora ya pasó. Elige una hora límite más tarde que ahora.');
+  return new Date(d.getTime() + 24 * 3600 * 1000);
 }
 
 function where(ubicacion) {
@@ -56,7 +63,7 @@ export function tripMessage({ destino, motivo, hasta, ubicacion, ahora = new Dat
   }
   const m = String(motivo ?? '').trim();
   return `🛡️ AVISO DE SEGURIDAD: voy a ${d}${m ? ` (${m})` : ''}. Salgo a las ${hhmm(ahora)}. `
-    + `Si no te escribo "Llegué bien" antes de las ${hhmm(hasta)}, llámame. Si no contesto, llama al 105 y da esta información. `
+    + `Si no te escribo "Llegué bien" antes de las ${hhmm(hasta)}${limaDate(hasta) !== limaDate(ahora) ? ' de mañana' : ''}, llámame. Si no contesto, llama al 105 y da esta información. `
     + where(ubicacion);
 }
 
