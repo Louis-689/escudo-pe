@@ -133,3 +133,11 @@ body.camo .top-actions, body.camo .foot { display: none; }
   .top, .foot, .no-print, #msg { display: none !important; }
   .report { padding: 0; }
 }
+.report table { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; font-size: 0.8rem; margin: 6px 0; }
+.report th, .report td { border: 1px solid #bbb; padding: 4px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.report .risk { border: 2px solid #b42318; padding: 8px; border-radius: 6px; }
+.authors { border: 1px solid var(--line); border-radius: 8px; margin: 8px 0 12px; padding: 8px 12px; }
+.authors label { font-weight: 400; margin: 6px 0; }
+.detected { margin: 6px 0; font-size: 0.9rem; }
+.detected ul { margin: 4px 0; padding-left: 20px; overflow-wrap: anywhere; }
+.risk-tag { color: var(--danger); font-weight: 700; }

@@ -92,14 +92,16 @@ test('borrar todo deja el teléfono limpio', async () => {
 });
 
 class FailingStorage extends MemoryStorage {
-  async setMany() {
-    throw new Error('disco lleno');
+  async setMany(...args) {
+    if (this.failing) throw new Error('disco lleno');
+    return super.setMany(...args);
   }
 }
 
 test('si falla la escritura, la contraseña anterior sigue funcionando', async () => {
   const storage = new FailingStorage();
   const v = await Vault.create(storage, 'clave-segura', FAST);
+  storage.failing = true;
   await assert.rejects(v.changePassword('nueva-clave'), /disco lleno/);
   const reopened = await Vault.open(storage, 'clave-segura');
   assert.equal(reopened.log.length, 0);
@@ -108,7 +110,19 @@ test('si falla la escritura, la contraseña anterior sigue funcionando', async (
 test('si falla al guardar un registro, la bitácora no cambia', async () => {
   const storage = new FailingStorage();
   const v = await Vault.create(storage, 'clave-segura', FAST);
+  storage.failing = true;
   await assert.rejects(v.add(incident, [audio], NOW), /disco lleno/);
   assert.equal(v.log.length, 0);
   assert.deepEqual((await storage.keys()).sort(), ['log', 'meta']);
+});
+
+test('importar una copia ignora claves extrañas y rechaza parámetros peligrosos', async () => {
+  const v = await Vault.create(new MemoryStorage(), 'clave-segura', FAST);
+  const data = JSON.parse(await v.exportBackup());
+  data.items['__proto__x'] = 'basura';
+  const other = new MemoryStorage();
+  await Vault.importBackup(other, JSON.stringify(data), 'clave-segura');
+  assert.deepEqual((await other.keys()).sort(), ['log', 'meta']);
+  data.meta.iterations = 1e12;
+  await assert.rejects(Vault.importBackup(new MemoryStorage(), JSON.stringify(data), 'clave-segura'), /no son válidos/);
 });

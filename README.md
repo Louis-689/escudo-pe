@@ -24,6 +24,10 @@ No existía una herramienta abierta, gratuita y pensada para el Perú que ayudar
 | Función | Para qué sirve |
 | --- | --- |
 | **Registrar amenazas** | Fecha y hora, canal (llamada, WhatsApp, SMS, redes, en persona, carta), número o perfil, monto exigido, Yape/Plin/cuenta indicada, mensaje literal y descripción. |
+| **Importar chat de WhatsApp** | Elige el chat exportado (.zip o .txt con sus archivos) y cada mensaje del extorsionador queda registrado con su número, fecha, hora y fotos o audios. Funciona con Android y iPhone, en español e inglés. |
+| **Datos detectados** | En cada mensaje, Escudo detecta números (y su país), cuentas bancarias, CCI, Yape/Plin, billeteras de criptomonedas, enlaces, perfiles, correos, placas de vehículos, montos y señales de riesgo (amenazas de muerte, explosivos, familia, armas, plazos). |
+| **Datos para la Fiscalía** | El informe agrupa cada número y cuenta con cuántas veces aparece, la primera y última fecha y el canal: justo lo que se necesita para pedir, con orden judicial, la identificación de titulares, el registro de llamadas, la geolocalización y el levantamiento del secreto bancario. |
+| **Cadena de custodia** | Cada verificación, informe, paquete, copia o importación queda registrada en la bitácora encadenada, con fecha y hora. El informe incluye espacio para marca, modelo e IMEI del celular. |
 | **Guardar pruebas** | Capturas, audios, videos, fotos o PDF, cifrados dentro del teléfono. |
 | **Grabar audio** | Graba desde la misma app (por ejemplo, una llamada en altavoz o lo que recuerdas justo después). |
 | **Huella de cada prueba** | Calcula el SHA-256 del archivo al registrarlo. Si luego el original da la misma huella, no fue modificado. |
@@ -36,6 +40,14 @@ No existía una herramienta abierta, gratuita y pensada para el Perú que ayudar
 | **Modo camuflado** | Cerrada, la app parece una libreta de "Notas". Se abre escribiendo la contraseña en "Buscar"; cualquier otra cosa muestra "No se encontraron notas". |
 | **Copia de seguridad** | Archivo cifrado para guardar en otro teléfono de confianza. Sin la contraseña no sirve. |
 | **Sin internet** | Después de la primera visita funciona sin conexión (PWA). Se puede "instalar" en la pantalla de inicio. |
+
+## Lo que Escudo no hace (y por qué)
+
+Escudo **no rastrea la IP, la ubicación ni la identidad** de quien llama o escribe:
+
+- **No es técnicamente posible** desde una app: una llamada o un mensaje de WhatsApp no le muestran al receptor la IP ni la ubicación de quien lo envía. Las herramientas que lo prometen dependen de engañar al extorsionador para que abra un enlace trampa, lo que expone a la víctima a represalias.
+- **Es ilegal sin orden judicial** y puede invalidar las pruebas del caso.
+- **La identificación la hace la Policía y la Fiscalía con orden judicial**: geolocalización (D. Leg. 1182), intervención de comunicaciones (Ley 27697 y art. 230 del Código Procesal Penal) y, desde enero de 2026, un trámite de 24 horas en casos de extorsión (D. Leg. 1708, [Caretas](https://caretas.pe/?p=787847)). Escudo le entrega a la víctima, ordenados, los datos que la Fiscalía necesita para pedirlo rápido ([modelo de solicitud](https://modelo.pe/solicitud-al-fiscal-de-geolocalizacion-y-levantamiento-del-secreto-de-las-comunicaciones-del-numero-extorsionador/)).
 
 ## Privacidad y seguridad
 
@@ -57,7 +69,7 @@ No existía una herramienta abierta, gratuita y pensada para el Perú que ayudar
 
 1. Abre la app desde el navegador del celular (Chrome, Firefox, Samsung Internet, Safari).
 2. Crea una contraseña.
-3. Cada vez que recibas una amenaza, entra a **Registrar**, llena lo que sepas y adjunta las capturas o audios.
+3. Cada vez que recibas una amenaza, entra a **Registrar**, llena lo que sepas y adjunta las capturas o audios. Si te escriben por WhatsApp, usa **Importar un chat de WhatsApp**.
 4. Antes de ir a la comisaría, entra a **Informe** → *Comprobar que nada fue alterado* → *Ver informe para imprimir o guardar en PDF*, o descarga el *paquete de pruebas*.
 5. Ve a la comisaría o al Depincri con el informe **y con tu celular**.
 6. Si temes que revisen tu celular, activa el **modo camuflado** en Ajustes.
@@ -93,6 +105,9 @@ js/core/vault.js      Bóveda cifrada: crear, abrir, agregar, verificar, copias
 js/core/storage.js    IndexedDB (navegador) y memoria (tests)
 js/core/report.js     Informe en texto y HTML
 js/core/evidence.js   Paquete de pruebas (ZIP) y búsqueda por huella
+js/core/indicators.js Detección de números, cuentas, enlaces, placas y riesgos
+js/core/whatsapp.js   Lectura de chats exportados de WhatsApp
+js/core/unzip.js      Lector de ZIP (para el chat exportado en iPhone)
 js/core/zip.js        Generador de ZIP sin dependencias
 js/data/contacts.js   Contactos oficiales y pasos a seguir (con fuentes)
 sw.js                 Service worker para uso sin internet

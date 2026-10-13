@@ -26,7 +26,20 @@ export const MEDIOS_PAGO = {
   otro: 'Otro',
 };
 
-export const TIPOS = { incidente: 'Incidente', nota: 'Nota o corrección' };
+export const TIPOS = { incidente: 'Incidente', nota: 'Nota o corrección', custodia: 'Evento de custodia' };
+
+// Eventos de cadena de custodia: quedan en la bitácora encadenada, así se sabe
+// cuándo se exportaron, verificaron o restauraron las pruebas.
+export const EVENTOS_CUSTODIA = {
+  creacion: 'Creación de la bitácora',
+  verificacion: 'Verificación de integridad',
+  informe: 'Generación del informe',
+  paquete: 'Generación del paquete de pruebas',
+  copia: 'Copia de seguridad cifrada',
+  restauracion: 'Restauración desde copia',
+  importacion: 'Importación de chat de WhatsApp',
+  contrasena: 'Cambio de contraseña',
+};
 
 // Margen para relojes de celular desajustados.
 const FUTURE_TOLERANCE_MS = 10 * 60 * 1000;
@@ -91,11 +104,18 @@ export function formatSoles(amount) {
   return 'S/ ' + amount.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+const has = (obj, key) => typeof key === 'string' && Object.prototype.hasOwnProperty.call(obj, key);
+
 /** Valida los datos que escribe la persona. Devuelve una lista de errores en español. */
 export function validateIncident(input, now = new Date()) {
   const errors = [];
   const tipo = input.tipo || 'incidente';
-  if (!TIPOS[tipo]) errors.push('Tipo de registro no válido.');
+  if (!has(TIPOS, tipo)) errors.push('Tipo de registro no válido.');
+
+  if (tipo === 'custodia') {
+    if (!has(EVENTOS_CUSTODIA, input.evento)) errors.push('Evento de custodia no válido.');
+    return errors;
+  }
 
   if (tipo === 'nota') {
     if (!input.refiereA) errors.push('La nota debe indicar a qué registro corrige.');
@@ -109,8 +129,8 @@ export function validateIncident(input, now = new Date()) {
   } else if (when.getTime() > now.getTime() + FUTURE_TOLERANCE_MS) {
     errors.push('La fecha no puede estar en el futuro.');
   }
-  if (!CANALES[input.canal]) errors.push('Elige cómo te contactaron.');
-  if (input.medioPago && !(input.medioPago in MEDIOS_PAGO)) errors.push('Medio de pago no válido.');
+  if (!has(CANALES, input.canal)) errors.push('Elige cómo te contactaron.');
+  if (input.medioPago && !has(MEDIOS_PAGO, input.medioPago)) errors.push('Medio de pago no válido.');
 
   const monto = parseAmount(input.montoExigido);
   if (Number.isNaN(monto)) errors.push('No se entiende el monto. Escríbelo solo con números, por ejemplo 1500.');
@@ -138,6 +158,9 @@ export function createEntry(input, now = new Date()) {
     descripcion: String(input.descripcion ?? '').trim(),
   };
   if (tipo === 'nota') return { ...base, refiereA: input.refiereA };
+  if (tipo === 'custodia') {
+    return { ...base, evento: input.evento, dispositivo: String(input.dispositivo ?? '').slice(0, 300) };
+  }
 
   const contacto = normalizePhone(input.contacto);
   return {
@@ -207,7 +230,7 @@ export function summarize(log) {
   const fechas = incidents.map((e) => e.ocurridoEn).sort();
   return {
     totalIncidentes: incidents.length,
-    totalNotas: log.length - incidents.length,
+    totalNotas: log.filter((e) => e.tipo === 'nota').length,
     totalAdjuntos: incidents.reduce((n, e) => n + e.adjuntos.length, 0),
     primerIncidente: fechas[0] || null,
     ultimoIncidente: fechas[fechas.length - 1] || null,

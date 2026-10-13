@@ -45,3 +45,24 @@ test('informe vacío', () => {
 test('escapeHtml', () => {
   assert.equal(escapeHtml(`<a href="x">'&'</a>`), '&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;');
 });
+
+test('el informe incluye datos para la Fiscalía, riesgos y cadena de custodia', async () => {
+  let log = await sampleLog();
+  log = await appendEntry(log, createEntry({ tipo: 'custodia', evento: 'paquete', descripcion: '2 pruebas' }, NOW));
+  const opts = { generadoEn: NOW, creadoEn: '2026-10-01T15:00:00.000Z' };
+  const text = buildTextReport(log, opts);
+  assert.match(text, /DATOS PARA LA FISCALÍA/);
+  assert.match(text, /\+51987654321 · Celular, Perú · 1 vez\/veces/);
+  assert.match(text, /D\. Leg\. 1182/);
+  assert.match(text, /Yape: 912345678/);
+  assert.match(text, /CADENA DE CUSTODIA\n- Bitácora creada el 01\/10\/2026/);
+  assert.match(text, /Generación del paquete de pruebas — 2 pruebas/);
+  assert.doesNotMatch(text, /#3/, 'los eventos de custodia no son incidentes');
+  const html = buildHtmlReport(log, opts);
+  assert.match(html, /<h2>Datos para la Fiscalía<\/h2>/);
+  assert.match(html, /<td>\+51987654321<\/td>/);
+});
+
+test('validación de eventos de custodia', () => {
+  assert.throws(() => createEntry({ tipo: 'custodia', evento: 'inventado' }, NOW), /custodia no válido/);
+});

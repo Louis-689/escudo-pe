@@ -9,6 +9,8 @@ Escudo guarda información muy sensible de personas en riesgo. Si encuentras una
 - Alguien que toma el celular **bloqueado o con Escudo cerrado** y revisa archivos, la galería o el almacenamiento del navegador: los registros y pruebas están cifrados (AES-GCM 256, clave derivada con PBKDF2-SHA256, 210 000 iteraciones).
 - Escrituras a medias: guardar un registro, cambiar la contraseña o restaurar una copia se hace en una sola transacción de IndexedDB (todo o nada).
 - Alteraciones de la bitácora: cada registro está encadenado con SHA-256 al anterior y cada prueba tiene su huella. `verify()` detecta cambios, registros borrados o reordenados y archivos dañados.
+- Archivos manipulados: las copias y los ZIP se validan (parámetros de cifrado, claves permitidas, tamaño máximo descomprimido de 300 MB, CRC de cada archivo).
+- Adivinar la contraseña desde la app: tras 3 intentos fallidos, cada intento espera cada vez más (hasta 30 s). La bitácora se bloquea tras 5 minutos sin uso o 2 minutos en segundo plano, y las pruebas abiertas dejan de ser accesibles al bloquearse.
 - Fugas por la red: no hay servidor, la página no carga recursos de terceros y la política de seguridad de contenido (CSP) bloquea conexiones a otros dominios.
 
 **Escudo NO protege contra:**

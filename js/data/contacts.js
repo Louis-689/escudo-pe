@@ -49,6 +49,14 @@ export const PASOS = [
     texto: 'Cada amenaza, por separado, con fecha, número, monto y cuentas que te pidan usar. Escudo guarda una huella de cada prueba.',
   },
   {
+    titulo: 'Exporta el chat de WhatsApp',
+    texto: 'En el chat: ⋮ → Más → Exportar chat → Incluir archivos. Impórtalo en Escudo: cada mensaje queda registrado con su número, fecha y hora.',
+  },
+  {
+    titulo: 'No intentes rastrearlos ni enfrentarlos',
+    texto: 'No respondas con amenazas ni envíes enlaces "para ubicarlos": te pone en más riesgo y puede invalidar las pruebas. Identificar al número y a los titulares de las cuentas lo hace la Policía con orden judicial; tu informe le da los datos para pedirlo.',
+  },
+  {
     titulo: 'No des datos personales ni familiares',
     texto: 'No confirmes direcciones, horarios, nombres de familiares ni datos de tu negocio.',
   },

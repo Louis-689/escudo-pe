@@ -93,6 +93,21 @@
     <section id="tab-new" class="tab">
       <h1>Registrar una amenaza</h1>
       <p class="hint">Registra cada mensaje o llamada por separado, apenas ocurra.</p>
+      <details class="card" id="wa-card">
+        <summary><b>Importar un chat de WhatsApp</b> (rápido y más completo)</summary>
+        <ol class="hint small">
+          <li>En WhatsApp abre el chat del extorsionador.</li>
+          <li>Toca ⋮ (o el nombre del contacto en iPhone) → <b>Más</b> → <b>Exportar chat</b> → <b>Incluir archivos</b>.</li>
+          <li>Guárdalo en tu teléfono ("Guardar en Archivos" o "Descargas").</li>
+          <li>Elígelo aquí: el archivo .zip, o el .txt junto con sus fotos y audios.</li>
+        </ol>
+        <label>Chat exportado <input id="wa-files" type="file" multiple accept=".txt,.zip,text/plain,application/zip,image/*,audio/*,video/*,application/pdf"></label>
+        <div id="wa-step2" hidden>
+          <p id="wa-summary" class="hint"></p>
+          <fieldset id="wa-authors" class="authors"><legend>¿Quién te extorsiona? Marca su número o nombre</legend><div></div></fieldset>
+          <button type="button" class="primary" data-action="wa-import">Importar a la bitácora</button>
+        </div>
+      </details>
       <form id="form-new" class="card">
         <label>¿Cuándo ocurrió? <input name="ocurridoEn" type="datetime-local" required></label>
         <label>¿Cómo te contactaron?

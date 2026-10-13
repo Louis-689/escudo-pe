@@ -97,3 +97,8 @@ test('summarize agrupa números y cuentas repetidas', async () => {
   assert.deepEqual(s.cuentas, [{ valor: 'Yape: 912345678', veces: 1 }]);
   assert.equal(s.primerIncidente, '2026-10-11T15:00:00.000Z');
 });
+
+test('la validación no acepta propiedades heredadas como canal o medio de pago', () => {
+  assert.match(validateIncident({ ...base, canal: 'constructor' }, NOW).join(' '), /Elige cómo/);
+  assert.match(validateIncident({ ...base, medioPago: 'toString' }, NOW).join(' '), /Medio de pago/);
+});

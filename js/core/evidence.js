@@ -33,7 +33,7 @@ No reemplazan el peritaje del dispositivo original.
 `;
 
 /** Reúne todo en un ZIP. readFile(id) devuelve los bytes de una prueba. */
-export async function buildEvidencePackage(log, readFile, { verificacion, generadoEn = new Date() } = {}) {
+export async function buildEvidencePackage(log, readFile, { verificacion, generadoEn = new Date(), creadoEn } = {}) {
   const files = [];
   const hashes = [];
   const problemas = [];
@@ -53,7 +53,7 @@ export async function buildEvidencePackage(log, readFile, { verificacion, genera
     out.push({ name: f.path, bytes });
   }
 
-  const opts = { verificacion, generadoEn };
+  const opts = { verificacion, generadoEn, creadoEn };
   return {
     zip: createZip([
       { name: 'LEEME.txt', bytes: README + `\nGenerado el ${formatDate(generadoEn.toISOString())} (hora de Lima).\n` },
