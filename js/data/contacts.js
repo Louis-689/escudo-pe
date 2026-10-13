@@ -29,6 +29,18 @@ export const CONTACTOS = [
     detalle: 'Para enviar videos, audios o capturas de los mensajes extorsivos. También: 966 834 447.',
     fuente: 'https://www.americatv.com.pe/noticias/amp/actualidad/central-111-contra-extorsiones-ha-recibido-188-llamadas-n497516',
   },
+  {
+    nombre: 'ALEGRA – orientación legal gratuita (MINJUSDH)',
+    numero: '1884',
+    detalle: 'Abogados del Estado gratis para víctimas: te acompañan en la denuncia y el proceso.',
+    fuente: 'https://andina.pe/agencia/noticia-fono-alegra-1884-brinda-orientacion-legal-gratuita-a-nivel-nacional-751457.aspx',
+  },
+  {
+    nombre: 'Línea 113 – salud mental (MINSA)',
+    numero: '113',
+    detalle: 'Apoyo psicológico gratuito las 24 horas. Vivir amenazado afecta; pedir ayuda es parte de protegerte.',
+    fuente: 'https://andina.pe/agencia/noticia-linea-113-del-minsa-mas-60000-personas-recibieron-orientacion-psicologica-gratuita-1048068.aspx',
+  },
 ];
 
 export const PASOS = [
@@ -63,6 +75,10 @@ export const PASOS = [
   {
     titulo: 'Denuncia lo antes posible',
     texto: 'Ve a la comisaría o al Depincri más cercano con tu informe de Escudo y tu celular. Tu identidad puede mantenerse en reserva.',
+  },
+  {
+    titulo: 'Pide medidas de protección',
+    texto: 'Al denunciar, pide a la Fiscalía medidas de protección para ti y tu familia (reserva de identidad, rondas policiales) y apoyo de la Unidad de Asistencia a Víctimas y Testigos (UDAVIT).',
   },
   {
     titulo: 'Reporta la cuenta',

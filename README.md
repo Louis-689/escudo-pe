@@ -1,8 +1,8 @@
 # Escudo 🛡️
 
-**Bitácora cifrada y sin internet para víctimas de extorsión en el Perú.**
+**Protección, pruebas y denuncia para víctimas de extorsión en el Perú. Cifrado y sin internet.**
 
-Escudo ayuda a quien recibe amenazas de extorsión a **registrar cada amenaza, conservar las pruebas sin que se alteren y llegar a la comisaría con un informe ordenado**. Funciona en cualquier celular con navegador, sin internet y sin crear cuentas. Todo queda **cifrado y solo en el teléfono** de la víctima.
+Escudo ayuda a quien recibe amenazas de extorsión a **protegerse a sí mismo y a su familia, registrar cada amenaza, conservar las pruebas sin que se alteren y llegar a la comisaría con un informe ordenado**. Funciona en cualquier celular con navegador, sin internet y sin crear cuentas. Todo queda **cifrado y solo en el teléfono** de la víctima.
 
 > Escudo no reemplaza la denuncia ni la asesoría legal. Si estás en peligro ahora mismo, llama al **105**.
 
@@ -21,6 +21,19 @@ No existía una herramienta abierta, gratuita y pensada para el Perú que ayudar
 
 ## Qué hace
 
+### Protegerte
+
+| Función | Para qué sirve |
+| --- | --- |
+| **Botón SOS** | Siempre visible, incluso sin contraseña. Llama al 105 o, con un toque, prepara un mensaje de alerta con **tu** ubicación GPS para tus contactos de confianza por WhatsApp o SMS (uno o todos a la vez). Solo tienes que pulsar "Enviar". |
+| **Aviso de trayecto** | Antes de ir a un cobro, una reunión o abrir el negocio, avisas a un contacto a dónde vas y hasta qué hora debe saber de ti. Si no le escribes "Llegué bien", da la alarma, aunque te quiten el celular. |
+| **Plan de seguridad** | Lista práctica para la familia, las rutinas, la casa o el negocio y la denuncia, con avance guardado y cifrado. |
+| **Palabra clave familiar** | Una palabra que solo tu familia sabe, para desarmar el "tenemos a tu hijo" de una llamada falsa. Se guarda cifrada. |
+| **Blindaje digital** | Pasos concretos para cerrar WhatsApp, llamadas, Facebook, Instagram, TikTok y el celular: la información que los extorsionadores usan para presionarte. |
+| **Ayuda legal y psicológica** | ALEGRA 1884 (abogados gratis del Estado), Línea 113 (apoyo psicológico gratuito 24 h) y cómo pedir medidas de protección a la Fiscalía. |
+
+### Reunir pruebas y denunciar
+
 | Función | Para qué sirve |
 | --- | --- |
 | **Registrar amenazas** | Fecha y hora, canal (llamada, WhatsApp, SMS, redes, en persona, carta), número o perfil, monto exigido, Yape/Plin/cuenta indicada, mensaje literal y descripción. |
@@ -35,8 +48,8 @@ No existía una herramienta abierta, gratuita y pensada para el Perú que ayudar
 | **Informe para la denuncia** | Resumen (números y cuentas que se repiten, monto máximo, fechas) y detalle cronológico. Se imprime, se guarda como PDF, se copia como texto o se comparte. |
 | **Paquete de pruebas (ZIP)** | Un solo archivo para la comisaría o el abogado: pruebas originales, informe, `huellas.sha256` y la bitácora completa. Se verifica con `sha256sum -c huellas.sha256`. |
 | **Comprobar un archivo** | Eliges una captura o audio y Escudo te dice si es exactamente una de las pruebas registradas. |
-| **Guía y contactos** | Qué hacer paso a paso y a quién llamar (111, 105, 1818, Dirincri), con fuente y fecha de verificación. Se puede ver sin abrir la bitácora. |
-| **Salida rápida y botón 105** | Un botón cierra la app y abre una página inofensiva; otro llama a la Policía. La bitácora se bloquea sola si la app queda 2 minutos en segundo plano. |
+| **Guía y contactos** | Qué hacer paso a paso y a quién llamar (111, 105, 1818, Dirincri, ALEGRA 1884, Línea 113), con fuente y fecha de verificación. Se puede ver sin abrir la bitácora. |
+| **Salida rápida** | Un botón cierra la app y abre una página inofensiva. La bitácora se bloquea sola si la app queda 2 minutos en segundo plano. |
 | **Modo camuflado** | Cerrada, la app parece una libreta de "Notas". Se abre escribiendo la contraseña en "Buscar"; cualquier otra cosa muestra "No se encontraron notas". |
 | **Copia de seguridad** | Archivo cifrado para guardar en otro teléfono de confianza. Sin la contraseña no sirve. |
 | **Sin internet** | Después de la primera visita funciona sin conexión (PWA). Se puede "instalar" en la pantalla de inicio. |
@@ -47,6 +60,8 @@ Escudo **no rastrea la IP, la ubicación ni la identidad** de quien llama o escr
 
 - **No es técnicamente posible** desde una app: una llamada o un mensaje de WhatsApp no le muestran al receptor la IP ni la ubicación de quien lo envía. Las herramientas que lo prometen dependen de engañar al extorsionador para que abra un enlace trampa, lo que expone a la víctima a represalias.
 - **Es ilegal sin orden judicial** y puede invalidar las pruebas del caso.
+- **Una página web no puede enviar SMS ni WhatsApp sola.** El SOS y el aviso de trayecto dejan el mensaje listo y abren la app; la persona pulsa "Enviar". Así nadie puede usar Escudo para mandar mensajes en tu nombre.
+- **Aún no hay una lista comunitaria de números extorsivos.** Necesitaría un servidor central (que guardaría datos de víctimas) y los números se falsifican con facilidad, así que una lista abierta podría marcar a inocentes. Queda como idea para cuando exista un aliado institucional que la administre.
 - **La identificación la hace la Policía y la Fiscalía con orden judicial**: geolocalización (D. Leg. 1182), intervención de comunicaciones (Ley 27697 y art. 230 del Código Procesal Penal) y, desde enero de 2026, un trámite de 24 horas en casos de extorsión (D. Leg. 1708, [Caretas](https://caretas.pe/?p=787847)). Escudo le entrega a la víctima, ordenados, los datos que la Fiscalía necesita para pedirlo rápido ([modelo de solicitud](https://modelo.pe/solicitud-al-fiscal-de-geolocalizacion-y-levantamiento-del-secreto-de-las-comunicaciones-del-numero-extorsionador/)).
 
 ## Privacidad y seguridad
@@ -64,6 +79,7 @@ Escudo **no rastrea la IP, la ubicación ni la identidad** de quien llama o escr
 - Borrar los datos del navegador borra la bitácora. Haz copias de seguridad.
 - El **paquete de pruebas (ZIP) no está cifrado**, porque está hecho para entregarlo. Bórralo de tu celular después de entregarlo.
 - El modo camuflado engaña a una mirada rápida, no a alguien que revise el navegador a fondo.
+- Para que el SOS funcione sin contraseña, **los nombres y números de tus contactos de confianza** (y la hora límite de un trayecto en curso) se guardan sin cifrar. Usa apodos si prefieres. El destino del trayecto, el plan de seguridad y la palabra clave sí van cifrados.
 
 ## Cómo usarlo
 
@@ -109,6 +125,7 @@ js/core/indicators.js Detección de números, cuentas, enlaces, placas y riesgos
 js/core/whatsapp.js   Lectura de chats exportados de WhatsApp
 js/core/unzip.js      Lector de ZIP (para el chat exportado en iPhone)
 js/core/zip.js        Generador de ZIP sin dependencias
+js/core/safety.js     SOS, aviso de trayecto, plan de seguridad y blindaje digital
 js/data/contacts.js   Contactos oficiales y pasos a seguir (con fuentes)
 sw.js                 Service worker para uso sin internet
 tests/                Tests con node:test (sin dependencias)
@@ -129,6 +146,7 @@ Las contribuciones son bienvenidas. Lee [CONTRIBUTING.md](CONTRIBUTING.md). Hay 
 - Traducción al quechua y aimara.
 - Exportar en el formato que pida la PNP o el Ministerio Público.
 - Compartir la bitácora, cifrada, con un familiar de confianza.
+- Lista comunitaria de números extorsivos, administrada con una institución (ver arriba).
 
 ## Licencia
 

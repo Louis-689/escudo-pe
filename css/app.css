@@ -141,3 +141,20 @@ body.camo .top-actions, body.camo .foot { display: none; }
 .detected { margin: 6px 0; font-size: 0.9rem; }
 .detected ul { margin: 4px 0; padding-left: 20px; overflow-wrap: anywhere; }
 .risk-tag { color: var(--danger); font-weight: 700; }
+.sos { background: var(--danger); color: #fff; border: 2px solid #fff; font-weight: 800; letter-spacing: 1px; }
+.big-call {
+  display: block; text-align: center; margin: 12px 0; padding: 16px; border-radius: 10px;
+  background: var(--danger); color: #fff; font-size: 1.2rem; font-weight: 800; text-decoration: none;
+}
+button.big { padding: 16px; font-size: 1.05rem; }
+a.link-btn {
+  display: block; text-align: center; padding: 12px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--card); color: var(--fg); font-weight: 700; text-decoration: none;
+}
+a.link-btn.wa { border-color: #25d366; }
+.plan-section { margin-top: 12px; }
+.plan-section h3 { font-size: 1rem; margin: 8px 0 4px; }
+.plan-section label { font-weight: 400; align-items: flex-start; }
+.plan-section label input { margin-top: 4px; }
+#blindaje details { border-top: 1px solid var(--line); padding: 8px 0; }
+#blindaje li { margin: 4px 0; }

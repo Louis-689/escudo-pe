@@ -97,6 +97,16 @@ export class Vault {
     return added;
   }
 
+  /** Plan de seguridad y palabra clave familiar (cifrados, fuera de la bitácora encadenada). */
+  async getPlan() {
+    const box = await this.storage.get('plan');
+    return box ? decryptJson(this.key, box) : { hechos: {}, palabraClave: '', notas: '' };
+  }
+
+  async savePlan(plan) {
+    await this.storage.set('plan', await encryptJson(this.key, plan));
+  }
+
   /** Deja constancia de un evento de custodia en la bitácora encadenada. */
   async logCustody(evento, descripcion = '', dispositivo = globalThis.navigator?.userAgent || '') {
     return this.add({ tipo: 'custodia', evento, descripcion, dispositivo });
@@ -129,7 +139,7 @@ export class Vault {
   async exportBackup() {
     const items = {};
     for (const key of await this.storage.keys()) {
-      if (key === 'log' || key.startsWith('file:')) items[key] = await this.storage.get(key);
+      if (key === 'log' || key === 'plan' || key.startsWith('file:')) items[key] = await this.storage.get(key);
     }
     return JSON.stringify({ format: FORMAT + '/copia', version: VERSION, meta: this.meta, items });
   }
@@ -150,7 +160,7 @@ export class Vault {
     const log = await decryptJson(key, data.items.log);
     const items = {};
     for (const [k, v] of Object.entries(data.items)) {
-      if (k === 'log' || /^file:[0-9a-f]{16}$/.test(k)) items[k] = v;
+      if (k === 'log' || k === 'plan' || /^file:[0-9a-f]{16}$/.test(k)) items[k] = v;
     }
     await storage.setMany({ ...items, meta: data.meta }, { replace: true });
     return new Vault(storage, key, data.meta, log);
@@ -162,6 +172,8 @@ export class Vault {
     const meta = { ...this.meta, salt: newSalt() };
     const key = await deriveKey(newPassword, meta.salt, meta.iterations);
     const entries = { meta, log: await encryptJson(key, this.log) };
+    const plan = await this.storage.get('plan');
+    if (plan) entries.plan = await encryptJson(key, await decryptJson(this.key, plan));
     for (const k of await this.storage.keys()) {
       if (k.startsWith('file:')) entries[k] = await encryptBytes(key, await decryptBytes(this.key, await this.storage.get(k)));
     }

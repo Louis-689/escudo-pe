@@ -17,7 +17,7 @@
   <header class="top">
     <strong id="brand" class="brand">Escudo</strong>
     <span class="top-actions">
-      <a id="sos" class="sos" href="tel:105" title="Llamar a la Policía (105)">Llamar 105</a>
+      <button id="sos" class="sos" type="button" title="Emergencia: llamar al 105 o avisar a tus contactos">SOS</button>
       <button id="exit" class="exit" type="button" title="Cierra la app y abre otra página">Salida rápida</button>
     </span>
   </header>
@@ -86,6 +86,7 @@
       <button type="button" data-tab="new" aria-selected="true">Registrar</button>
       <button type="button" data-tab="log">Bitácora</button>
       <button type="button" data-tab="report">Informe</button>
+      <button type="button" data-tab="protect">Protección</button>
       <button type="button" data-tab="help">Ayuda</button>
       <button type="button" data-tab="settings">Ajustes</button>
     </nav>
@@ -179,6 +180,48 @@
       </form>
     </section>
 
+    <section id="tab-protect" class="tab" hidden>
+      <h1>Protección</h1>
+      <div class="card stack">
+        <h2>🚨 SOS y contactos de confianza</h2>
+        <p class="hint">El botón <b>SOS</b> de arriba te deja llamar al 105 o mandar tu ubicación a tus contactos de confianza en dos toques, incluso sin abrir la bitácora.</p>
+        <button type="button" data-action="open-sos">Configurar contactos y probar el SOS</button>
+      </div>
+
+      <form id="form-trip" class="card">
+        <h2>🛡️ Aviso de trayecto</h2>
+        <p class="hint">Antes de ir a un lugar riesgoso (un cobro, una reunión, abrir el negocio), avisa a alguien de confianza a dónde vas y hasta qué hora debe saber de ti. Si no le escribes "Llegué bien", esa persona da la alarma, aunque te quiten el celular.</p>
+        <label>¿A dónde vas? <input name="destino" required maxlength="120" autocomplete="off" placeholder="Ej. mercado de Caquetá, puesto 14"></label>
+        <label>¿Para qué? (opcional) <input name="motivo" maxlength="120" autocomplete="off"></label>
+        <label>Si no aviso antes de las… <input name="hasta" type="time" required></label>
+        <label>¿A quién avisas? <select name="contacto" required></select></label>
+        <button type="submit" class="primary">Preparar aviso</button>
+      </form>
+      <div id="trip-links" class="stack"></div>
+      <div id="trip-active" class="card stack" hidden>
+        <h2>Trayecto en curso</h2>
+        <p id="trip-info"></p>
+        <div id="trip-arrived" class="stack"></div>
+        <button type="button" data-action="trip-clear">Terminar sin avisar</button>
+      </div>
+
+      <div class="card">
+        <h2>📋 Plan de seguridad</h2>
+        <p class="hint">Marca lo que ya hiciste. Se guarda cifrado.</p>
+        <label>Palabra clave familiar
+          <input id="clave-familiar" type="password" autocomplete="off" maxlength="60" placeholder="Una palabra que solo tu familia sepa">
+        </label>
+        <p class="hint small">Si alguien llama diciendo que tiene a un familiar, pídele la palabra clave antes de creer o pagar nada.</p>
+        <div id="plan"></div>
+      </div>
+
+      <div class="card">
+        <h2>🔒 Blindaje digital</h2>
+        <p class="hint">Los extorsionadores sacan nombres, fotos y rutinas de tu WhatsApp y tus redes. Ciérrales la puerta:</p>
+        <div id="blindaje"></div>
+      </div>
+    </section>
+
     <section id="tab-help" class="tab" hidden></section>
 
     <section id="tab-settings" class="tab" hidden>
@@ -206,6 +249,28 @@
       </div>
       <button type="button" data-action="lock">Cerrar bitácora</button>
     </section>
+  </main>
+
+  <!-- SOS: funciona sin abrir la bitácora -->
+  <main id="view-sos" class="view" hidden>
+    <h1>🚨 SOS</h1>
+    <a class="big-call" href="tel:105">📞 Llamar al 105 (Policía)</a>
+    <button type="button" class="primary big" data-action="sos-send">📍 Avisar a mis contactos con mi ubicación</button>
+    <p id="sos-status" class="hint" aria-live="polite"></p>
+    <div id="sos-links" class="stack"></div>
+    <details class="card" id="sos-config">
+      <summary><b>Contactos de confianza</b></summary>
+      <p class="hint small">Para que el SOS funcione sin contraseña, estos nombres y números se guardan sin cifrar en este teléfono. Usa apodos si prefieres.</p>
+      <ul id="trusted" class="pending"></ul>
+      <form id="form-trusted">
+        <div class="row">
+          <label>Nombre <input name="nombre" required maxlength="40" autocomplete="off"></label>
+          <label>Celular <input name="numero" required inputmode="tel" autocomplete="off" placeholder="987 654 321"></label>
+        </div>
+        <button type="submit">Agregar contacto</button>
+      </form>
+    </details>
+    <button type="button" data-action="sos-back">Volver</button>
   </main>
 
   <!-- Vista del informe (se imprime solo esta parte) -->

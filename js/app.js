@@ -10,6 +10,9 @@ import { readZip } from './core/unzip.js';
 import { CANALES, MEDIOS_PAGO, formatSoles } from './core/model.js';
 import { buildTextReport, buildHtmlReport, buildReportBody, formatDate } from './core/report.js';
 import { CONTACTOS, PASOS, VERIFICADO } from './data/contacts.js';
+import {
+  normalizeContact, nextLimaTime, hhmm, sosMessage, tripMessage, arrivalMessage, whatsappLink, smsLink, PLAN, BLINDAJE,
+} from './core/safety.js';
 
 const storage = new IndexedDBStorage();
 const AUTO_LOCK_MS = 2 * 60 * 1000;
@@ -28,6 +31,12 @@ let pendingFiles = [];
 let recorder = null;
 const objectUrls = new Set();
 const FAILS_KEY = 'escudo.intentos';
+// Contactos de confianza y trayecto en curso: sin cifrar, para que el SOS
+// funcione sin contraseña. Solo nombre y número; nunca el destino.
+const SOS_KEY = 'escudo.sos';
+const TRIP_KEY = 'escudo.trayecto';
+let plan = null;
+let sosReturn = 'unlock';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -75,6 +84,11 @@ function showTab(tab) {
   for (const b of $$('.tabs button')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
   for (const t of $$('.tab')) t.hidden = t.id !== 'tab-' + tab;
   if (tab === 'log') renderLog();
+  if (tab === 'protect') {
+    renderTrusted();
+    renderTrip();
+    renderPlan().catch((err) => say(err.message, 'err'));
+  }
   say('');
 }
 
@@ -256,6 +270,142 @@ async function toggleRecording(btn) {
   btn.textContent = '⏹️ Detener grabación';
 }
 
+
+// ---------- Protección: SOS, aviso de trayecto, plan y blindaje ----------
+
+function getJson(key, fallback) {
+  try { return JSON.parse(getPref(key)) ?? fallback; } catch { return fallback; }
+}
+
+const trustedContacts = () => {
+  const list = getJson(SOS_KEY, []);
+  return Array.isArray(list) ? list.filter((c) => c && typeof c.nombre === 'string' && typeof c.numero === 'string') : [];
+};
+
+function linkButtons(target, contacts, text) {
+  const links = contacts.map((c) => el('a', {
+    class: 'link-btn wa', href: whatsappLink(c.numero, text), target: '_blank', rel: 'noopener noreferrer',
+  }, `WhatsApp a ${c.nombre}`));
+  if (contacts.length) {
+    links.push(el('a', { class: 'link-btn', href: smsLink(contacts.map((c) => c.numero), text) },
+      contacts.length > 1 ? `SMS a los ${contacts.length} contactos` : `SMS a ${contacts[0].nombre}`));
+  }
+  target.replaceChildren(...links);
+}
+
+function renderTrusted() {
+  const list = trustedContacts();
+  $('#trusted').replaceChildren(...list.map((c, i) => el('li', {},
+    el('span', {}, `${c.nombre} · ${c.numero}`),
+    el('button', { type: 'button', onclick: () => {
+      setPref(SOS_KEY, JSON.stringify(list.filter((_, j) => j !== i)));
+      renderTrusted();
+    } }, 'Quitar'))));
+  if (!list.length) $('#trusted').append(el('li', {}, 'Aún no tienes contactos de confianza.'));
+  const select = $('#form-trip').contacto;
+  select.replaceChildren(...list.map((c, i) => el('option', { value: String(i) }, c.nombre)));
+  if (!list.length) select.append(el('option', { value: '' }, 'Primero agrega un contacto en SOS'));
+}
+
+/** Ubicación de la propia persona, si lo permite. Nunca bloquea el SOS más de unos segundos. */
+function myLocation(timeout = 8000) {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(null);
+    const timer = setTimeout(() => resolve(null), timeout + 1000);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { clearTimeout(timer); resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude, precision: pos.coords.accuracy }); },
+      () => { clearTimeout(timer); resolve(null); },
+      { enableHighAccuracy: true, timeout, maximumAge: 60000 },
+    );
+  });
+}
+
+function openSos() {
+  if (!$('#view-sos').hidden) return;
+  sosReturn = [...$$('.view')].find((v) => !v.hidden)?.id.replace('view-', '') || 'unlock';
+  say('');
+  $('#sos-status').textContent = '';
+  $('#sos-links').replaceChildren();
+  renderTrusted();
+  $('#sos-config').open = !trustedContacts().length;
+  show('sos');
+}
+
+async function sendSos(btn) {
+  const contacts = trustedContacts();
+  if (!contacts.length) {
+    $('#sos-config').open = true;
+    $('#sos-status').textContent = 'Agrega al menos un contacto de confianza abajo.';
+    return;
+  }
+  busy(btn, true, 'Buscando tu ubicación…');
+  const ubicacion = await myLocation();
+  busy(btn, false);
+  $('#sos-status').textContent = ubicacion
+    ? 'Mensaje listo con tu ubicación. Toca un botón y pulsa "Enviar".'
+    : 'No se pudo obtener tu ubicación (activa el GPS si puedes). El mensaje sale igual. Toca un botón y pulsa "Enviar".';
+  linkButtons($('#sos-links'), contacts, sosMessage({ ubicacion }));
+}
+
+function activeTrip() {
+  const t = getJson(TRIP_KEY, null);
+  return t && typeof t.hasta === 'string' && typeof t.numero === 'string' ? t : null;
+}
+
+function renderTrip() {
+  const t = activeTrip();
+  $('#trip-active').hidden = !t;
+  $('#form-trip').hidden = Boolean(t);
+  if (!t) return;
+  const hasta = new Date(t.hasta);
+  const late = hasta < new Date();
+  $('#trip-info').textContent = `${t.nombre} espera tu aviso antes de las ${hhmm(hasta)}.`
+    + (late ? ' ⚠️ Ya pasó la hora: avísale ahora para que no se preocupe.' : '');
+  const text = arrivalMessage();
+  $('#trip-arrived').replaceChildren(
+    el('a', { class: 'link-btn wa', href: whatsappLink(t.numero, text), target: '_blank', rel: 'noopener noreferrer', onclick: endTrip }, '✅ Llegué bien (WhatsApp)'),
+    el('a', { class: 'link-btn', href: smsLink([t.numero], text), onclick: endTrip }, '✅ Llegué bien (SMS)'),
+  );
+}
+
+function endTrip() {
+  setPref(TRIP_KEY, null);
+  setTimeout(() => {
+    $('#trip-links').replaceChildren();
+    renderTrip();
+  }, 500);
+}
+
+async function renderPlan() {
+  plan = await vault.getPlan();
+  $('#clave-familiar').value = plan.palabraClave || '';
+  $('#plan').replaceChildren(...PLAN.map((sec) => el('div', { class: 'plan-section' },
+    el('h3', {}, sec.titulo),
+    ...sec.items.map(([id, texto]) => {
+      const box = el('input', { type: 'checkbox', 'data-plan': id });
+      box.checked = Boolean(plan.hechos[id]);
+      return el('label', { class: 'inline' }, box, ' ', texto);
+    }))));
+  $('#plan').prepend(el('p', { id: 'plan-progress', class: 'hint' }));
+  renderPlanProgress();
+}
+
+function renderPlanProgress() {
+  const all = PLAN.flatMap((sec) => sec.items);
+  $('#plan-progress').textContent = `Avance: ${all.filter(([id]) => plan.hechos[id]).length} de ${all.length}.`;
+}
+
+async function savePlan() {
+  if (!vault || !plan) return;
+  await vault.savePlan(plan);
+}
+
+function renderBlindaje() {
+  $('#blindaje').replaceChildren(...BLINDAJE.map((sec) => el('details', {},
+    el('summary', {}, el('b', {}, sec.titulo)),
+    el('ol', {}, ...sec.pasos.map((p) => el('li', {}, p))))));
+}
+
 // ---------- Modo camuflado ----------
 
 function getPref(key) {
@@ -414,8 +564,18 @@ function lock() {
   $('#check-result').textContent = '';
   $('#verify-result').textContent = '';
   $('#form-new').reset();
+  plan = null;
+  $('#plan').replaceChildren();
+  $('#clave-familiar').value = '';
+  $('#trip-links').replaceChildren();
   say('');
-  showLocked();
+  // Si se bloquea en medio de un SOS, la pantalla de emergencia sigue visible.
+  if (!$('#view-sos').hidden) {
+    applyLook(true);
+    sosReturn = 'unlock';
+  } else {
+    showLocked();
+  }
 }
 
 function showLocked() {
@@ -441,8 +601,7 @@ async function wipe() {
   const answer = window.prompt('Esto borrará la bitácora y las pruebas de este teléfono. Escribe BORRAR para confirmar.');
   if (answer !== 'BORRAR') return;
   await Vault.wipe(storage);
-  setPref(CAMO_KEY, null);
-  setPref(DECOY_KEY, null);
+  for (const key of [CAMO_KEY, DECOY_KEY, SOS_KEY, TRIP_KEY, FAILS_KEY]) setPref(key, null);
   applyLook(false);
   vault = null;
   show('setup');
@@ -464,6 +623,60 @@ function bind() {
   renderHelp($('#help-public'));
 
   $('#exit').addEventListener('click', quickExit);
+  $('#sos').addEventListener('click', openSos);
+  renderBlindaje();
+
+  $('#form-trusted').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    try {
+      const c = normalizeContact({ nombre: ev.target.nombre.value, numero: ev.target.numero.value });
+      const list = trustedContacts();
+      if (list.length >= 5) throw new Error('Máximo 5 contactos de confianza.');
+      if (list.some((x) => x.numero === c.numero)) throw new Error('Ese número ya está en tu lista.');
+      setPref(SOS_KEY, JSON.stringify([...list, c]));
+      ev.target.reset();
+      $('#sos-status').textContent = `${c.nombre} agregado.`;
+      renderTrusted();
+    } catch (err) {
+      $('#sos-status').textContent = err.message;
+    }
+  });
+
+  $('#form-trip').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const f = ev.target;
+    const c = trustedContacts()[Number(f.contacto.value)];
+    if (!c || f.contacto.value === '') return say('Primero agrega un contacto de confianza con el botón SOS.', 'err');
+    const btn = $('button[type=submit]', f);
+    try {
+      const hasta = nextLimaTime(f.hasta.value);
+      busy(btn, true, 'Buscando tu ubicación…');
+      const text = tripMessage({ destino: f.destino.value, motivo: f.motivo.value, hasta, ubicacion: await myLocation() });
+      setPref(TRIP_KEY, JSON.stringify({ hasta: hasta.toISOString(), nombre: c.nombre, numero: c.numero }));
+      linkButtons($('#trip-links'), [c], text);
+      $('#trip-links').prepend(el('p', { class: 'hint' }, 'Envía el aviso. Cuando llegues, vuelve aquí y toca "Llegué bien".'));
+      say('');
+      f.reset();
+      renderTrip();
+    } catch (err) {
+      say(err.message, 'err');
+    } finally {
+      busy(btn, false);
+    }
+  });
+
+  $('#plan').addEventListener('change', async (ev) => {
+    const id = ev.target.dataset.plan;
+    if (!id || !plan) return;
+    plan.hechos[id] = ev.target.checked;
+    renderPlanProgress();
+    try { await savePlan(); } catch (err) { say(err.message, 'err'); }
+  });
+  $('#clave-familiar').addEventListener('change', async (ev) => {
+    if (!plan) return;
+    plan.palabraClave = ev.target.value.trim();
+    try { await savePlan(); say('Palabra clave guardada (cifrada).', 'ok'); } catch (err) { say(err.message, 'err'); }
+  });
   $$('.tabs button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
   $$('[data-goto="help"]').forEach((a) => a.addEventListener('click', (ev) => {
     ev.preventDefault();
@@ -624,6 +837,18 @@ function bind() {
     lock,
     back: () => (vault ? openApp() : previousView === 'unlock' ? showLocked() : show(previousView)),
     print: () => window.print(),
+    'open-sos': openSos,
+    'sos-send': sendSos,
+    'sos-back': () => {
+      if (vault && sosReturn === 'app') show('app');
+      else if (!vault && ['app', 'report', 'unlock', 'notes'].includes(sosReturn)) showLocked();
+      else show(sosReturn);
+    },
+    'trip-clear': () => {
+      setPref(TRIP_KEY, null);
+      $('#trip-links').replaceChildren();
+      renderTrip();
+    },
     record: toggleRecording,
     'wa-import': importChat,
     async evidence(btn) {
@@ -699,7 +924,8 @@ function bind() {
     document.addEventListener(type, () => { lastActivity = Date.now(); }, { passive: true });
   }
   setInterval(() => {
-    if (vault && !recorder && Date.now() - lastActivity > IDLE_LOCK_MS) lock();
+    // No se bloquea en medio de una emergencia.
+    if (vault && !recorder && $('#view-sos').hidden && Date.now() - lastActivity > IDLE_LOCK_MS) lock();
   }, 15000);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) hiddenAt = Date.now();
