@@ -71,12 +71,12 @@ export class Vault {
       adjuntos.push({ id: newId(), nombre: f.nombre, tipo: f.tipo || 'application/octet-stream', tamano: f.bytes.length, sha256: await sha256Hex(f.bytes), bytes: f.bytes });
     }
     const entry = createEntry({ ...input, adjuntos }, now);
-    for (const a of adjuntos) {
-      await this.storage.set('file:' + a.id, await encryptBytes(this.key, a.bytes));
-    }
-    this.log = await appendEntry(this.log, entry);
-    await this.saveLog();
-    return this.log[this.log.length - 1];
+    const log = await appendEntry(this.log, entry);
+    const writes = { log: await encryptJson(this.key, log) };
+    for (const a of adjuntos) writes['file:' + a.id] = await encryptBytes(this.key, a.bytes);
+    await this.storage.setMany(writes);
+    this.log = log;
+    return log[log.length - 1];
   }
 
   async readFile(id) {
@@ -124,24 +124,21 @@ export class Vault {
     }
     const key = await deriveKey(password, data.meta.salt, data.meta.iterations);
     const log = await decryptJson(key, data.items.log);
-    await storage.clear();
-    await storage.set('meta', data.meta);
-    for (const [k, v] of Object.entries(data.items)) await storage.set(k, v);
+    await storage.setMany({ ...data.items, meta: data.meta }, { replace: true });
     return new Vault(storage, key, data.meta, log);
   }
 
+  /** Vuelve a cifrar todo con la nueva contraseña y lo guarda en una sola escritura. */
   async changePassword(newPassword) {
     checkPassword(newPassword);
     const meta = { ...this.meta, salt: newSalt() };
     const key = await deriveKey(newPassword, meta.salt, meta.iterations);
-    const files = {};
+    const entries = { meta, log: await encryptJson(key, this.log) };
     for (const k of await this.storage.keys()) {
-      if (k.startsWith('file:')) files[k] = await decryptBytes(this.key, await this.storage.get(k));
+      if (k.startsWith('file:')) entries[k] = await encryptBytes(key, await decryptBytes(this.key, await this.storage.get(k)));
     }
-    for (const [k, bytes] of Object.entries(files)) await this.storage.set(k, await encryptBytes(key, bytes));
+    await this.storage.setMany(entries);
     this.key = key;
     this.meta = meta;
-    await this.saveLog();
-    await this.storage.set('meta', meta);
   }
 }

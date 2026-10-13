@@ -2,7 +2,8 @@
 
 import { Vault } from './core/vault.js';
 import { IndexedDBStorage } from './core/storage.js';
-import { isCryptoAvailable } from './core/crypto.js';
+import { isCryptoAvailable, sha256Hex } from './core/crypto.js';
+import { buildEvidencePackage, findByHash } from './core/evidence.js';
 import { CANALES, MEDIOS_PAGO, formatSoles } from './core/model.js';
 import { buildTextReport, buildHtmlReport, buildReportBody, formatDate } from './core/report.js';
 import { CONTACTOS, PASOS, VERIFICADO } from './data/contacts.js';
@@ -11,9 +12,14 @@ const storage = new IndexedDBStorage();
 const AUTO_LOCK_MS = 2 * 60 * 1000;
 const EXIT_URL = 'https://www.google.com/search?q=clima+lima';
 
+const CAMO_KEY = 'escudo.camuflaje';
+const DECOY_KEY = 'escudo.nota';
+
 let vault = null;
 let hiddenAt = 0;
 let previousView = 'setup';
+let pendingFiles = [];
+let recorder = null;
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -61,7 +67,6 @@ function showTab(tab) {
   for (const b of $$('.tabs button')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
   for (const t of $$('.tab')) t.hidden = t.id !== 'tab-' + tab;
   if (tab === 'log') renderLog();
-  if (tab === 'new') resetForm();
   say('');
 }
 
@@ -87,16 +92,93 @@ function renderHelp(target) {
 function resetForm() {
   const form = $('#form-new');
   form.reset();
+  pendingFiles = [];
+  renderPending();
   form.ocurridoEn.value = localDateTimeValue();
   form.ocurridoEn.max = localDateTimeValue(new Date(Date.now() + 60 * 1000));
 }
 
-async function readFiles(fileList) {
-  const out = [];
+async function addPending(fileList) {
   for (const f of fileList) {
-    out.push({ nombre: f.name, tipo: f.type, bytes: new Uint8Array(await f.arrayBuffer()) });
+    pendingFiles.push({ nombre: f.name, tipo: f.type, bytes: new Uint8Array(await f.arrayBuffer()) });
   }
-  return out;
+  renderPending();
+}
+
+function renderPending() {
+  $('#pending').replaceChildren(...pendingFiles.map((f, i) => el('li', {},
+    el('span', {}, f.nombre, ' ', el('span', { class: 'hint' }, `(${Math.ceil(f.bytes.length / 1024)} KB)`)),
+    el('button', { type: 'button', onclick: () => { pendingFiles.splice(i, 1); renderPending(); } }, 'Quitar'))));
+}
+
+// ---------- Grabación de audio ----------
+
+function canRecord() {
+  return Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+}
+
+async function toggleRecording(btn) {
+  if (recorder) {
+    recorder.stop();
+    return;
+  }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    say('No se pudo usar el micrófono. Revisa los permisos del navegador.', 'err');
+    return;
+  }
+  const chunks = [];
+  const started = new Date();
+  const rec = new MediaRecorder(stream);
+  const timer = setInterval(() => {
+    const secs = Math.floor((Date.now() - started) / 1000);
+    $('#rec-status').textContent = `Grabando ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+  }, 500);
+  rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+  rec.onstop = async () => {
+    clearInterval(timer);
+    stream.getTracks().forEach((t) => t.stop());
+    recorder = null;
+    btn.classList.remove('recording');
+    btn.textContent = '🎙️ Grabar audio';
+    $('#rec-status').textContent = '';
+    if (!vault || !chunks.length) return;
+    const type = rec.mimeType || 'audio/webm';
+    const ext = type.includes('ogg') ? 'ogg' : type.includes('mp4') ? 'm4a' : 'webm';
+    const blob = new Blob(chunks, { type });
+    const name = `grabacion-${localDateTimeValue(started).replace('T', '-').replace(':', '')}.${ext}`;
+    pendingFiles.push({ nombre: name, tipo: type.split(';')[0], bytes: new Uint8Array(await blob.arrayBuffer()) });
+    renderPending();
+    say('Grabación lista. Se guardará al pulsar "Guardar registro".', 'ok');
+  };
+  recorder = rec;
+  rec.start(1000);
+  btn.classList.add('recording');
+  btn.textContent = '⏹️ Detener grabación';
+}
+
+// ---------- Modo camuflado ----------
+
+function getPref(key) {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+
+function setPref(key, value) {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
+  } catch { /* almacenamiento bloqueado: se usa el modo normal */ }
+}
+
+const isCamo = () => getPref(CAMO_KEY) === '1';
+
+function applyLook(locked) {
+  const camo = locked && isCamo();
+  document.body.classList.toggle('camo', camo);
+  document.title = camo ? 'Notas' : 'Escudo';
+  $('#brand').textContent = camo ? 'Notas' : 'Escudo';
 }
 
 function download(name, content, type) {
@@ -172,15 +254,34 @@ async function addNote(entry) {
 // ---------- Sesión ----------
 
 function lock() {
+  if (recorder) recorder.stop();
   vault = null;
+  pendingFiles = [];
   $('#log-list').replaceChildren();
   $('#report-body').replaceChildren();
+  $('#check-result').textContent = '';
+  $('#verify-result').textContent = '';
   $('#form-new').reset();
-  show('unlock');
+  say('');
+  showLocked();
+}
+
+function showLocked() {
+  applyLook(true);
+  if (isCamo()) {
+    $('#decoy').value = getPref(DECOY_KEY) || '';
+    $('#notes-empty').hidden = true;
+    show('notes');
+  } else {
+    show('unlock');
+  }
 }
 
 function openApp() {
+  applyLook(false);
+  $('#camo').checked = isCamo();
   show('app');
+  resetForm();
   showTab('new');
 }
 
@@ -188,6 +289,9 @@ async function wipe() {
   const answer = window.prompt('Esto borrará la bitácora y las pruebas de este teléfono. Escribe BORRAR para confirmar.');
   if (answer !== 'BORRAR') return;
   await Vault.wipe(storage);
+  setPref(CAMO_KEY, null);
+  setPref(DECOY_KEY, null);
+  applyLook(false);
   vault = null;
   show('setup');
   say('Se borró todo.', 'ok');
@@ -271,7 +375,8 @@ function bind() {
     const btn = $('button[type=submit]', f);
     busy(btn, true, 'Guardando…');
     try {
-      const files = await readFiles(f.files.files);
+      if (recorder) throw new Error('Detén la grabación antes de guardar.');
+      const files = pendingFiles;
       await vault.add({
         ocurridoEn: f.ocurridoEn.value,
         canal: f.canal.value,
@@ -289,6 +394,43 @@ function bind() {
     } finally {
       busy(btn, false);
     }
+  });
+
+  $('#form-new').files.addEventListener('change', async (ev) => {
+    await addPending(ev.target.files);
+    ev.target.value = '';
+  });
+  if (canRecord()) $('#rec').hidden = false;
+
+  $('#form-notes').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const pw = ev.target.pw.value;
+    ev.target.reset();
+    try {
+      vault = await Vault.open(storage, pw);
+      openApp();
+    } catch {
+      $('#notes-empty').hidden = false;
+    }
+  });
+  $('#decoy').addEventListener('input', (ev) => setPref(DECOY_KEY, ev.target.value));
+  $('#camo').addEventListener('change', (ev) => {
+    setPref(CAMO_KEY, ev.target.checked ? '1' : null);
+    say(ev.target.checked
+      ? 'Modo camuflado activado. Al cerrar, Escudo se verá como una libreta de notas.'
+      : 'Modo camuflado desactivado.', 'ok');
+  });
+
+  $('#form-check').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const file = ev.target.file.files[0];
+    const out = $('#check-result');
+    out.textContent = 'Calculando huella…';
+    const hash = await sha256Hex(new Uint8Array(await file.arrayBuffer()));
+    const hit = findByHash(vault.log, hash);
+    out.textContent = hit
+      ? `✅ Coincide con la prueba "${hit.adjunto.nombre}" del incidente #${hit.numero} (${formatDate(hit.registro.ocurridoEn)}). Huella: ${hash}`
+      : `❌ No coincide con ninguna prueba registrada. Huella: ${hash}`;
   });
 
   $('#form-password').addEventListener('submit', async (ev) => {
@@ -311,8 +453,22 @@ function bind() {
   const actions = {
     wipe,
     lock,
-    back: () => (vault ? openApp() : show(previousView)),
+    back: () => (vault ? openApp() : previousView === 'unlock' ? showLocked() : show(previousView)),
     print: () => window.print(),
+    record: toggleRecording,
+    async evidence(btn) {
+      if (!window.confirm('El paquete NO está cifrado: cualquiera que lo abra verá las pruebas. Entrégalo solo a la Policía, la Fiscalía o tu abogado, y bórralo de tu celular después. ¿Continuar?')) return;
+      busy(btn, true, 'Preparando…');
+      try {
+        const pkg = await buildEvidencePackage(vault.log, (id) => vault.readFile(id), { verificacion: await vault.verify() });
+        download(`pruebas-escudo-${stamp()}.zip`, pkg.zip, 'application/zip');
+        say(pkg.problemas.length
+          ? `Paquete descargado, pero estas pruebas no coinciden con su huella: ${pkg.problemas.join(', ')}.`
+          : `Paquete descargado con ${pkg.archivos} prueba(s).`, pkg.problemas.length ? 'err' : 'ok');
+      } finally {
+        busy(btn, false);
+      }
+    },
     async verify(btn) {
       busy(btn, true, 'Comprobando…');
       const r = await vault.verify();
@@ -374,7 +530,8 @@ async function start() {
     say('Este navegador no permite cifrar en esta página. Ábrela desde una dirección https:// o actualiza el navegador.', 'err');
     return;
   }
-  show((await Vault.exists(storage)) ? 'unlock' : 'setup');
+  if (await Vault.exists(storage)) showLocked();
+  else show('setup');
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }

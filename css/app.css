@@ -46,6 +46,12 @@ a { color: var(--brand); }
   background: var(--brand); color: var(--brand-fg);
 }
 .brand { font-size: 1.1rem; }
+.top-actions { display: flex; gap: 8px; align-items: center; }
+.sos {
+  color: var(--brand-fg); border: 2px solid var(--brand-fg); border-radius: 8px;
+  padding: 8px 10px; min-height: 44px; display: inline-flex; align-items: center;
+  font-weight: 700; text-decoration: none;
+}
 .exit {
   background: var(--danger); color: #fff; border: 0;
   font-weight: 700; padding: 10px 14px; border-radius: 8px; min-height: 44px;
@@ -96,6 +102,17 @@ code, .hash { font-family: ui-monospace, monospace; font-size: 0.75rem; word-bre
 .contacts a.call { display: inline-block; margin-top: 6px; font-weight: 700; font-size: 1.1rem; }
 .preview img, .preview video { max-width: 100%; height: auto; display: block; margin-top: 8px; }
 .preview audio { width: 100%; margin-top: 8px; }
+label.inline { display: flex; gap: 10px; align-items: center; }
+label.inline input { width: auto; min-height: 0; margin: 0; }
+.recorder { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+#rec.recording { background: var(--danger); color: #fff; border-color: var(--danger); }
+.pending { list-style: none; padding: 0; margin: 0 0 8px; }
+.pending li { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.pending button { flex: 0 0 auto; white-space: nowrap; min-height: 36px; padding: 4px 10px; }
+.notes-search input { margin-top: 12px; }
+.decoy { margin-top: 12px; min-height: 50vh; }
+body.camo .top { background: var(--card); color: var(--fg); border-bottom: 1px solid var(--line); }
+body.camo .top-actions, body.camo .foot { display: none; }
 .foot { margin-top: 32px; color: var(--muted); font-size: 0.8rem; }
 
 /* Informe */

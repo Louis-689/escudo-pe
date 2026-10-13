@@ -1,7 +1,9 @@
 // Almacenamiento clave-valor. La bóveda solo guarda aquí datos ya cifrados,
 // salvo "meta" (sal y parámetros, que no son secretos).
 //
-// Interfaz: get(key), set(key, value), del(key), keys(), clear().
+// Interfaz: get(key), set(key, value), del(key), keys(), clear(),
+// setMany(entries, { replace }) — escribe varios valores de una sola vez
+// (todo o nada). Con replace: true borra antes todo lo demás.
 
 export class MemoryStorage {
   constructor() {
@@ -22,6 +24,11 @@ export class MemoryStorage {
   }
   async clear() {
     this.map.clear();
+  }
+  async setMany(entries, { replace = false } = {}) {
+    const next = replace ? new Map() : new Map(this.map);
+    for (const [k, v] of Object.entries(entries)) next.set(k, structuredClone(v));
+    this.map = next;
   }
 }
 
@@ -61,4 +68,13 @@ export class IndexedDBStorage {
   del(key) { return this.run('readwrite', (s) => s.delete(key)); }
   keys() { return this.run('readonly', (s) => s.getAllKeys()); }
   clear() { return this.run('readwrite', (s) => s.clear()); }
+  /** Una sola transacción: si algo falla, no se escribe nada. */
+  setMany(entries, { replace = false } = {}) {
+    return this.run('readwrite', (s) => {
+      if (replace) s.clear();
+      let last;
+      for (const [k, v] of Object.entries(entries)) last = s.put(v, k);
+      return last;
+    });
+  }
 }

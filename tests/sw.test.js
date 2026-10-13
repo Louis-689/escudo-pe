@@ -6,7 +6,7 @@ const root = new URL('..', import.meta.url);
 
 test('el service worker guarda en caché todos los archivos de la app', async () => {
   const sw = await readFile(new URL('sw.js', root), 'utf8');
-  const listed = [...sw.matchAll(/'([^']+\.(?:js|css|html|svg|webmanifest))'/g)].map((m) => m[1]);
+  const listed = [...sw.matchAll(/'([^']+\.(?:js|css|html|svg|png|webmanifest))'/g)].map((m) => m[1]);
   for (const f of listed) await access(new URL(f, root));
   const jsFiles = [
     'js/app.js',

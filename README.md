@@ -25,11 +25,15 @@ No existía una herramienta abierta, gratuita y pensada para el Perú que ayudar
 | --- | --- |
 | **Registrar amenazas** | Fecha y hora, canal (llamada, WhatsApp, SMS, redes, en persona, carta), número o perfil, monto exigido, Yape/Plin/cuenta indicada, mensaje literal y descripción. |
 | **Guardar pruebas** | Capturas, audios, videos, fotos o PDF, cifrados dentro del teléfono. |
+| **Grabar audio** | Graba desde la misma app (por ejemplo, una llamada en altavoz o lo que recuerdas justo después). |
 | **Huella de cada prueba** | Calcula el SHA-256 del archivo al registrarlo. Si luego el original da la misma huella, no fue modificado. |
 | **Bitácora encadenada** | Cada registro guarda la huella del anterior. Editar, borrar o reordenar algo rompe la cadena y se detecta. Las correcciones se agregan como notas, sin tocar el original. |
 | **Informe para la denuncia** | Resumen (números y cuentas que se repiten, monto máximo, fechas) y detalle cronológico. Se imprime, se guarda como PDF, se copia como texto o se comparte. |
+| **Paquete de pruebas (ZIP)** | Un solo archivo para la comisaría o el abogado: pruebas originales, informe, `huellas.sha256` y la bitácora completa. Se verifica con `sha256sum -c huellas.sha256`. |
+| **Comprobar un archivo** | Eliges una captura o audio y Escudo te dice si es exactamente una de las pruebas registradas. |
 | **Guía y contactos** | Qué hacer paso a paso y a quién llamar (111, 105, 1818, Dirincri), con fuente y fecha de verificación. Se puede ver sin abrir la bitácora. |
-| **Salida rápida** | Un botón que cierra la app y abre una página inofensiva. La bitácora también se bloquea sola si la app queda 2 minutos en segundo plano. |
+| **Salida rápida y botón 105** | Un botón cierra la app y abre una página inofensiva; otro llama a la Policía. La bitácora se bloquea sola si la app queda 2 minutos en segundo plano. |
+| **Modo camuflado** | Cerrada, la app parece una libreta de "Notas". Se abre escribiendo la contraseña en "Buscar"; cualquier otra cosa muestra "No se encontraron notas". |
 | **Copia de seguridad** | Archivo cifrado para guardar en otro teléfono de confianza. Sin la contraseña no sirve. |
 | **Sin internet** | Después de la primera visita funciona sin conexión (PWA). Se puede "instalar" en la pantalla de inicio. |
 
@@ -46,14 +50,17 @@ No existía una herramienta abierta, gratuita y pensada para el Perú que ayudar
 - Una contraseña corta puede adivinarse con tiempo si alguien copia los datos del teléfono. Usa una frase larga.
 - La huella prueba que un archivo **no cambió desde que se registró**, no quién lo envió. No reemplaza el peritaje: **no borres los originales** de tu celular, la Policía puede pedirlos.
 - Borrar los datos del navegador borra la bitácora. Haz copias de seguridad.
+- El **paquete de pruebas (ZIP) no está cifrado**, porque está hecho para entregarlo. Bórralo de tu celular después de entregarlo.
+- El modo camuflado engaña a una mirada rápida, no a alguien que revise el navegador a fondo.
 
 ## Cómo usarlo
 
 1. Abre la app desde el navegador del celular (Chrome, Firefox, Samsung Internet, Safari).
 2. Crea una contraseña.
 3. Cada vez que recibas una amenaza, entra a **Registrar**, llena lo que sepas y adjunta las capturas o audios.
-4. Antes de ir a la comisaría, entra a **Informe** → *Comprobar que nada fue alterado* → *Ver informe para imprimir o guardar en PDF*.
+4. Antes de ir a la comisaría, entra a **Informe** → *Comprobar que nada fue alterado* → *Ver informe para imprimir o guardar en PDF*, o descarga el *paquete de pruebas*.
 5. Ve a la comisaría o al Depincri con el informe **y con tu celular**.
+6. Si temes que revisen tu celular, activa el **modo camuflado** en Ajustes.
 
 ## Probarlo en tu computadora
 
@@ -85,6 +92,8 @@ js/core/model.js      Validación, normalización, cadena de huellas y resumen
 js/core/vault.js      Bóveda cifrada: crear, abrir, agregar, verificar, copias
 js/core/storage.js    IndexedDB (navegador) y memoria (tests)
 js/core/report.js     Informe en texto y HTML
+js/core/evidence.js   Paquete de pruebas (ZIP) y búsqueda por huella
+js/core/zip.js        Generador de ZIP sin dependencias
 js/data/contacts.js   Contactos oficiales y pasos a seguir (con fuentes)
 sw.js                 Service worker para uso sin internet
 tests/                Tests con node:test (sin dependencias)
@@ -102,10 +111,8 @@ Las contribuciones son bienvenidas. Lee [CONTRIBUTING.md](CONTRIBUTING.md). Hay 
 
 ## Ideas para siguientes versiones
 
-- Grabación de llamadas y audio directamente desde la app.
 - Traducción al quechua y aimara.
 - Exportar en el formato que pida la PNP o el Ministerio Público.
-- Modo "camuflado" (que la app parezca una calculadora o una libreta de notas).
 - Compartir la bitácora, cifrada, con un familiar de confianza.
 
 ## Licencia

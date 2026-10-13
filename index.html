@@ -10,12 +10,16 @@
   <title>Escudo</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
   <header class="top">
-    <strong class="brand">Escudo</strong>
-    <button id="exit" class="exit" type="button" title="Cierra la app y abre otra página">Salida rápida</button>
+    <strong id="brand" class="brand">Escudo</strong>
+    <span class="top-actions">
+      <a id="sos" class="sos" href="tel:105" title="Llamar a la Policía (105)">Llamar 105</a>
+      <button id="exit" class="exit" type="button" title="Cierra la app y abre otra página">Salida rápida</button>
+    </span>
   </header>
 
   <noscript><p class="box warn">Escudo necesita JavaScript activado.</p></noscript>
@@ -66,6 +70,16 @@
     </details>
   </main>
 
+  <!-- Modo camuflado: parece una libreta de notas. Escribir la contraseña en
+       "Buscar" y pulsar Enter abre la bitácora. -->
+  <main id="view-notes" class="view" hidden>
+    <form id="form-notes" class="notes-search" autocomplete="off">
+      <input name="pw" type="password" placeholder="Buscar" aria-label="Buscar" autocomplete="off">
+    </form>
+    <p id="notes-empty" class="hint" hidden>No se encontraron notas.</p>
+    <textarea id="decoy" class="decoy" rows="12" aria-label="Nota" placeholder="Escribe una nota…"></textarea>
+  </main>
+
   <!-- Abierto -->
   <main id="view-app" class="view" hidden>
     <nav class="tabs" role="tablist">
@@ -107,6 +121,11 @@
         <label>Pruebas: capturas, audios, videos o fotos
           <input name="files" type="file" multiple accept="image/*,audio/*,video/*,application/pdf">
         </label>
+        <div class="recorder">
+          <button type="button" id="rec" data-action="record" hidden>🎙️ Grabar audio</button>
+          <span id="rec-status" class="hint" aria-live="polite"></span>
+        </div>
+        <ul id="pending" class="pending"></ul>
         <p class="hint">Escudo guarda una copia cifrada y su huella. Igual <b>no borres</b> los originales de tu celular: la Policía puede pedirlos.</p>
         <button type="submit" class="primary">Guardar registro</button>
       </form>
@@ -131,6 +150,18 @@
         <button type="button" data-action="report-share" hidden>Compartir informe</button>
       </div>
       <p class="hint">El informe incluye lo que escribiste. Compártelo solo con la Policía, la Fiscalía o tu abogado.</p>
+      <div class="card stack">
+        <h2>Paquete de pruebas (ZIP)</h2>
+        <p class="hint">Un solo archivo con las pruebas originales, el informe y sus huellas, para entregarlo en la comisaría o a tu abogado. <b>No está cifrado</b>: bórralo de tu celular después de entregarlo.</p>
+        <button type="button" data-action="evidence">Descargar paquete de pruebas</button>
+      </div>
+      <form id="form-check" class="card">
+        <h2>Comprobar un archivo</h2>
+        <p class="hint">Elige una captura, audio o video para saber si es exactamente una de las pruebas registradas.</p>
+        <label>Archivo <input name="file" type="file" required></label>
+        <button type="submit">Comprobar</button>
+        <p id="check-result" class="hint" aria-live="polite"></p>
+      </form>
     </section>
 
     <section id="tab-help" class="tab" hidden></section>
@@ -144,11 +175,15 @@
       </div>
       <form id="form-password" class="card">
         <h2>Cambiar contraseña</h2>
-        <p class="hint">Descarga una copia antes, por si se interrumpe el proceso.</p>
         <label>Nueva contraseña <input name="p1" type="password" autocomplete="new-password" required minlength="6"></label>
         <label>Repítela <input name="p2" type="password" autocomplete="new-password" required minlength="6"></label>
         <button type="submit">Cambiar</button>
       </form>
+      <div class="card stack">
+        <h2>Modo camuflado</h2>
+        <p class="hint">Al cerrar, Escudo se verá como una libreta de notas. Para abrirlo, escribe tu contraseña en <b>Buscar</b> y pulsa Enter. Si alguien escribe otra cosa, solo verá "No se encontraron notas".</p>
+        <label class="inline"><input type="checkbox" id="camo"> Activar modo camuflado</label>
+      </div>
       <div class="card danger-zone">
         <h2>Borrar todo</h2>
         <p class="hint">Elimina la bitácora y las pruebas de este teléfono. No se puede deshacer.</p>

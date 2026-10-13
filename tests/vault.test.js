@@ -90,3 +90,25 @@ test('borrar todo deja el teléfono limpio', async () => {
   await Vault.wipe(storage);
   assert.equal(await Vault.exists(storage), false);
 });
+
+class FailingStorage extends MemoryStorage {
+  async setMany() {
+    throw new Error('disco lleno');
+  }
+}
+
+test('si falla la escritura, la contraseña anterior sigue funcionando', async () => {
+  const storage = new FailingStorage();
+  const v = await Vault.create(storage, 'clave-segura', FAST);
+  await assert.rejects(v.changePassword('nueva-clave'), /disco lleno/);
+  const reopened = await Vault.open(storage, 'clave-segura');
+  assert.equal(reopened.log.length, 0);
+});
+
+test('si falla al guardar un registro, la bitácora no cambia', async () => {
+  const storage = new FailingStorage();
+  const v = await Vault.create(storage, 'clave-segura', FAST);
+  await assert.rejects(v.add(incident, [audio], NOW), /disco lleno/);
+  assert.equal(v.log.length, 0);
+  assert.deepEqual((await storage.keys()).sort(), ['log', 'meta']);
+});
