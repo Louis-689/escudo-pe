@@ -69,6 +69,8 @@ function el(tag, attrs = {}, ...children) {
 }
 
 function say(text, kind = '') {
+  // Con la libreta camuflada en pantalla, ningún mensaje de Escudo debe asomarse.
+  if (text && document.body.classList.contains('camo')) return;
   const box = $('#msg');
   box.textContent = text;
   box.className = 'box ' + kind;
@@ -152,7 +154,15 @@ function resetForm() {
   form.ocurridoEn.max = localDateTimeValue(new Date(Date.now() + 60 * 1000));
 }
 
-async function addPending(fileList) {
+let pendingReads = Promise.resolve();
+
+function addPending(fileList) {
+  const files = [...fileList];
+  pendingReads = pendingReads.then(() => readPending(files));
+  return pendingReads;
+}
+
+async function readPending(fileList) {
   for (const f of fileList) {
     if (f.size > MAX_FILE_BYTES) {
       say(`"${f.name}" pesa más de 15 MB y no se puede guardar. Si es un video, recórtalo o envíalo comprimido.`, 'err');
@@ -496,6 +506,8 @@ function applyLook(locked) {
 }
 
 function download(name, content, type) {
+  // Con camuflaje, el archivo descargado no delata a Escudo por su nombre.
+  if (isCamo()) name = `nota-${stamp()}-${String(Math.random()).slice(2, 6)}${name.slice(name.lastIndexOf('.'))}`;
   const url = URL.createObjectURL(new Blob([content], { type }));
   const a = el('a', { href: url, download: name });
   document.body.append(a);
@@ -714,6 +726,8 @@ async function lock() {
   $('#clave-familiar').value = '';
   $('#trip-links').replaceChildren();
   $('#form-duress').reset();
+  $('#form-password').reset();
+  $('#form-trip').reset();
   say('');
   // Si se bloquea en medio de un SOS, la pantalla de emergencia sigue visible.
   if (!$('#view-sos').hidden) {
@@ -742,7 +756,36 @@ function openApp() {
   resetForm();
   showTab('new');
   renderTripBanner();
-  restoreDraft();
+  restoreDraft().then(importShared);
+}
+
+/** Archivos que llegaron con "Compartir" desde WhatsApp u otra app. */
+async function importShared() {
+  if (!vault || !('caches' in window) || !(await caches.has('escudo-compartido'))) return;
+  const cache = await caches.open('escudo-compartido');
+  const files = [];
+  for (const req of await cache.keys()) {
+    const res = await cache.match(req);
+    const nombre = decodeURIComponent(res.headers.get('x-nombre') || 'archivo');
+    files.push(new File([await res.blob()], nombre, { type: res.headers.get('content-type') || '' }));
+  }
+  await caches.delete('escudo-compartido');
+  if (!files.length) return;
+  const isChat = files.some((f) => /\.(zip|txt)$/i.test(f.name));
+  if (isChat) {
+    try {
+      chatImport = await loadChat(files);
+      $('#wa-card').open = true;
+      renderChatImport();
+      $('#wa-card').scrollIntoView({ block: 'start' });
+      say('Recibimos el chat que compartiste. Marca quién es el extorsionador y pulsa "Importar".', 'ok');
+    } catch (err) {
+      say(err.message, 'err');
+    }
+  } else {
+    await addPending(files);
+    say(`Recibimos ${files.length} archivo(s). Completa los datos y pulsa "Guardar registro".`, 'ok');
+  }
 }
 
 async function wipe() {
@@ -947,6 +990,7 @@ function bind() {
 
   $('#form-unlock').addEventListener('submit', async (ev) => {
     ev.preventDefault();
+    say('');
     const btn = $('button[type=submit]', ev.target);
     busy(btn, true, 'Abriendo…');
     try {
@@ -985,6 +1029,8 @@ function bind() {
     busy(btn, true, 'Guardando…');
     try {
       if (recorder) throw new Error('Detén la grabación antes de guardar.');
+      // Si una prueba se está leyendo todavía, se espera a que termine.
+      await pendingReads;
       const files = pendingFiles.map((p) => ({ ...p, recibida: f.recibidas.checked }));
       await vault.add({
         ocurridoEn: f.ocurridoEn.value,
@@ -1230,6 +1276,10 @@ async function start() {
   }
   if (await Vault.exists(storage)) showLocked();
   else show('setup');
+  if (new URLSearchParams(location.search).has('compartido')) {
+    history.replaceState(null, '', location.pathname);
+    say('Escribe tu contraseña para importar lo que compartiste.', 'ok');
+  }
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }

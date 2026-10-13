@@ -27,5 +27,27 @@
       "type": "image/svg+xml",
       "purpose": "any"
     }
-  ]
+  ],
+  "share_target": {
+    "action": "./compartir",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "files": [
+        {
+          "name": "archivos",
+          "accept": [
+            "text/plain",
+            "application/zip",
+            ".txt",
+            ".zip",
+            "image/*",
+            "audio/*",
+            "video/*",
+            "application/pdf"
+          ]
+        }
+      ]
+    }
+  }
 }

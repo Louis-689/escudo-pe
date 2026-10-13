@@ -40,7 +40,31 @@ self.addEventListener('activate', (event) => {
 });
 
 // Primero la caché (rápido y sin datos móviles); si hay red, se actualiza en segundo plano.
+// "Compartir" desde WhatsApp u otra app: los archivos se guardan aquí hasta
+// que la persona abre Escudo con su contraseña; entonces se importan y se borran.
+const SHARED = 'escudo-compartido';
+
+async function receiveShare(request) {
+  try {
+    const form = await request.formData();
+    const cache = await caches.open(SHARED);
+    let i = 0;
+    for (const file of form.getAll('archivos')) {
+      if (!(file instanceof File)) continue;
+      await cache.put(`./compartido/${i++}`, new Response(file, {
+        headers: { 'content-type': file.type || 'application/octet-stream', 'x-nombre': encodeURIComponent(file.name) },
+      }));
+    }
+  } catch { /* si falla, la persona puede elegir el archivo a mano */ }
+  return Response.redirect('./?compartido=1', 303);
+}
+
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  if (event.request.method === 'POST' && url.origin === self.location.origin && url.pathname.endsWith('/compartir')) {
+    event.respondWith(receiveShare(event.request));
+    return;
+  }
   if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
   event.respondWith(
     caches.open(CACHE).then(async (cache) => {
