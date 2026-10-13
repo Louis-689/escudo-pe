@@ -1,0 +1,15 @@
+{
+  "name": "escudo-pe",
+  "version": "0.1.0",
+  "description": "Bitácora cifrada y offline para víctimas de extorsión en el Perú: registra amenazas, preserva pruebas y genera un informe para la denuncia.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "start": "node scripts/serve.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

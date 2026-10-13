@@ -1,0 +1,14 @@
+{
+  "name": "Escudo – bitácora contra la extorsión",
+  "short_name": "Escudo",
+  "description": "Registra amenazas de extorsión, protege tus pruebas y prepara tu denuncia. Funciona sin internet.",
+  "lang": "es-PE",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f7f5",
+  "theme_color": "#14532d",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

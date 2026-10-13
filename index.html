@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#14532d">
+  <meta name="description" content="Bitácora cifrada para víctimas de extorsión. Funciona sin internet y todo queda solo en tu teléfono.">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Escudo</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header class="top">
+    <strong class="brand">Escudo</strong>
+    <button id="exit" class="exit" type="button" title="Cierra la app y abre otra página">Salida rápida</button>
+  </header>
+
+  <noscript><p class="box warn">Escudo necesita JavaScript activado.</p></noscript>
+  <p id="msg" class="box" role="status" hidden></p>
+
+  <!-- Primera vez -->
+  <main id="view-setup" class="view" hidden>
+    <h1>Protege tus pruebas</h1>
+    <p>Escudo te ayuda a registrar cada amenaza de extorsión, guardar las pruebas y preparar un informe para la denuncia.</p>
+    <ul class="checks">
+      <li>Funciona sin internet.</li>
+      <li>Todo queda <b>solo en este teléfono</b>, cifrado con tu contraseña.</li>
+      <li>Nadie más puede leerlo, ni siquiera los creadores de Escudo.</li>
+    </ul>
+    <form id="form-setup" class="card">
+      <label>Crea una contraseña (mínimo 6 caracteres)
+        <input name="p1" type="password" autocomplete="new-password" required minlength="6">
+      </label>
+      <label>Repítela
+        <input name="p2" type="password" autocomplete="new-password" required minlength="6">
+      </label>
+      <p class="hint">Si la olvidas no se puede recuperar. Usa una frase que no tenga que ver con tu nombre, DNI ni fecha de nacimiento.</p>
+      <button type="submit" class="primary">Crear mi bitácora</button>
+    </form>
+    <p><a href="#" data-goto="help">¿Qué hago si me están extorsionando?</a></p>
+    <details class="card">
+      <summary>Ya tengo una copia de seguridad</summary>
+      <form id="form-import-setup">
+        <label>Archivo de copia <input name="file" type="file" accept=".escudo,application/json" required></label>
+        <label>Contraseña de esa copia <input name="pw" type="password" autocomplete="current-password" required></label>
+        <button type="submit">Restaurar</button>
+      </form>
+    </details>
+  </main>
+
+  <!-- Bloqueado -->
+  <main id="view-unlock" class="view" hidden>
+    <h1>Abre tu bitácora</h1>
+    <form id="form-unlock" class="card">
+      <label>Contraseña <input name="pw" type="password" autocomplete="current-password" required></label>
+      <button type="submit" class="primary">Abrir</button>
+    </form>
+    <p><a href="#" data-goto="help">¿Qué hago si me están extorsionando?</a></p>
+    <details class="card danger-zone">
+      <summary>Olvidé mi contraseña</summary>
+      <p>No hay forma de recuperarla. Puedes borrar todo y empezar de nuevo, pero perderás los registros.</p>
+      <button type="button" class="danger" data-action="wipe">Borrar todo</button>
+    </details>
+  </main>
+
+  <!-- Abierto -->
+  <main id="view-app" class="view" hidden>
+    <nav class="tabs" role="tablist">
+      <button type="button" data-tab="new" aria-selected="true">Registrar</button>
+      <button type="button" data-tab="log">Bitácora</button>
+      <button type="button" data-tab="report">Informe</button>
+      <button type="button" data-tab="help">Ayuda</button>
+      <button type="button" data-tab="settings">Ajustes</button>
+    </nav>
+
+    <section id="tab-new" class="tab">
+      <h1>Registrar una amenaza</h1>
+      <p class="hint">Registra cada mensaje o llamada por separado, apenas ocurra.</p>
+      <form id="form-new" class="card">
+        <label>¿Cuándo ocurrió? <input name="ocurridoEn" type="datetime-local" required></label>
+        <label>¿Cómo te contactaron?
+          <select name="canal" required></select>
+        </label>
+        <label>Número, perfil o persona que te contactó
+          <input name="contacto" inputmode="tel" autocomplete="off" placeholder="Ej. 987 654 321">
+        </label>
+        <label>¿Cuánto te exigen? (S/)
+          <input name="montoExigido" inputmode="decimal" autocomplete="off" placeholder="Ej. 2000">
+        </label>
+        <div class="row">
+          <label>¿Dónde quieren que pagues?
+            <select name="medioPago"></select>
+          </label>
+          <label>Número de cuenta, Yape o Plin
+            <input name="cuentaPago" autocomplete="off">
+          </label>
+        </div>
+        <label>Copia el mensaje tal cual
+          <textarea name="mensaje" rows="3"></textarea>
+        </label>
+        <label>¿Qué pasó? (detalles, voces, vehículos, lo que recuerdes)
+          <textarea name="descripcion" rows="3"></textarea>
+        </label>
+        <label>Pruebas: capturas, audios, videos o fotos
+          <input name="files" type="file" multiple accept="image/*,audio/*,video/*,application/pdf">
+        </label>
+        <p class="hint">Escudo guarda una copia cifrada y su huella. Igual <b>no borres</b> los originales de tu celular: la Policía puede pedirlos.</p>
+        <button type="submit" class="primary">Guardar registro</button>
+      </form>
+    </section>
+
+    <section id="tab-log" class="tab" hidden>
+      <h1>Bitácora</h1>
+      <p id="log-empty" class="hint">Todavía no hay registros.</p>
+      <ol id="log-list" class="log" reversed></ol>
+    </section>
+
+    <section id="tab-report" class="tab" hidden>
+      <h1>Informe para la denuncia</h1>
+      <p>Lleva este informe a la comisaría o al Depincri junto con tu celular.</p>
+      <div class="card">
+        <button type="button" data-action="verify">Comprobar que nada fue alterado</button>
+        <p id="verify-result" class="hint" aria-live="polite"></p>
+      </div>
+      <div class="card stack">
+        <button type="button" class="primary" data-action="report-html">Ver informe para imprimir o guardar en PDF</button>
+        <button type="button" data-action="report-copy">Copiar informe como texto</button>
+        <button type="button" data-action="report-share" hidden>Compartir informe</button>
+      </div>
+      <p class="hint">El informe incluye lo que escribiste. Compártelo solo con la Policía, la Fiscalía o tu abogado.</p>
+    </section>
+
+    <section id="tab-help" class="tab" hidden></section>
+
+    <section id="tab-settings" class="tab" hidden>
+      <h1>Ajustes</h1>
+      <div class="card stack">
+        <h2>Copia de seguridad</h2>
+        <p class="hint">Si pierden o te quitan el celular, perderás todo. Guarda una copia en otro lugar seguro (por ejemplo, el celular de un familiar de confianza). La copia sigue cifrada.</p>
+        <button type="button" data-action="backup">Descargar copia cifrada</button>
+      </div>
+      <form id="form-password" class="card">
+        <h2>Cambiar contraseña</h2>
+        <p class="hint">Descarga una copia antes, por si se interrumpe el proceso.</p>
+        <label>Nueva contraseña <input name="p1" type="password" autocomplete="new-password" required minlength="6"></label>
+        <label>Repítela <input name="p2" type="password" autocomplete="new-password" required minlength="6"></label>
+        <button type="submit">Cambiar</button>
+      </form>
+      <div class="card danger-zone">
+        <h2>Borrar todo</h2>
+        <p class="hint">Elimina la bitácora y las pruebas de este teléfono. No se puede deshacer.</p>
+        <button type="button" class="danger" data-action="wipe">Borrar todo</button>
+      </div>
+      <button type="button" data-action="lock">Cerrar bitácora</button>
+    </section>
+  </main>
+
+  <!-- Vista del informe (se imprime solo esta parte) -->
+  <main id="view-report" class="view" hidden>
+    <div class="no-print stack">
+      <button type="button" class="primary" data-action="print">Imprimir o guardar como PDF</button>
+      <button type="button" data-action="report-download">Descargar informe (.html)</button>
+      <button type="button" data-action="back">Volver</button>
+    </div>
+    <article id="report-body" class="report"></article>
+  </main>
+
+  <!-- Ayuda sin abrir la bitácora -->
+  <main id="view-help" class="view" hidden>
+    <div id="help-public"></div>
+    <button type="button" data-action="back">Volver</button>
+  </main>
+
+  <template id="tpl-help">
+    <h1>¿Te están extorsionando?</h1>
+    <ol class="steps"></ol>
+    <h2>Dónde denunciar</h2>
+    <ul class="contacts"></ul>
+    <p class="hint small">Números verificados el <span class="verified"></span>. Pueden cambiar; si alguno no funciona, acude a la comisaría más cercana.</p>
+  </template>
+
+  <footer class="foot">
+    <p>Escudo es software libre (MIT). No reemplaza la denuncia ni la asesoría legal. <a href="https://github.com/Louis-689/escudo-pe" rel="noopener noreferrer">Código fuente</a></p>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
