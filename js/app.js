@@ -572,8 +572,8 @@ function renderLog() {
         el('span', { class: 'meta' }, 'Nota del ', formatDate(n.registradoEn), ': '), n.descripcion)),
       el('div', { class: 'meta' }, 'Registrado ', formatDate(e.registradoEn)),
       renderDetected(e),
-      ...e.adjuntos.filter((a) => a.metadatos).map((a) => el('div', { class: 'detected' },
-        el('b', {}, a.metadatos.gps ? '📍 Foto con ubicación: ' : '📷 Datos de la foto: '), a.nombre, el('br'),
+      ...e.adjuntos.filter((a) => a.metadatos && a.recibida).map((a) => el('div', { class: 'detected' },
+        el('b', {}, a.metadatos.gps ? '📍 Foto con ubicación (de quien la envió): ' : '📷 Datos de la foto recibida: '), a.nombre, el('br'),
         describeExif(a.metadatos),
         a.metadatos.gps && el('div', {}, el('a', {
           href: mapsLink(a.metadatos.gps.lat, a.metadatos.gps.lon), target: '_blank', rel: 'noopener noreferrer',
@@ -756,7 +756,34 @@ function openApp() {
   resetForm();
   showTab('new');
   renderTripBanner();
+  renderBackupBanner();
+  keepStorage();
   restoreDraft().then(importShared);
+}
+
+/** Pide al navegador que no borre la bitácora cuando falte espacio. */
+async function keepStorage() {
+  try {
+    if (navigator.storage && navigator.storage.persist && !(await navigator.storage.persisted())) await navigator.storage.persist();
+  } catch { /* no disponible */ }
+}
+
+const BACKUP_KEY = 'escudo.copia';
+const BACKUP_DAYS = 7;
+
+function renderBackupBanner() {
+  const banner = $('#backup-banner');
+  const incidents = vault ? vault.log.filter((e) => e.tipo === 'incidente').length : 0;
+  const last = Date.parse(getPref(BACKUP_KEY) || '');
+  const stale = !last || Date.now() - last > BACKUP_DAYS * 86400000;
+  banner.hidden = !(vault && incidents && stale);
+  if (!banner.hidden) {
+    banner.replaceChildren(
+      last ? `⚠️ Tu última copia de seguridad es del ${formatDate(new Date(last).toISOString())}. ` : '⚠️ Aún no tienes una copia de seguridad. ',
+      'Si pierdes o te quitan el celular, perderás tus pruebas. ',
+      el('button', { type: 'button', 'data-action': 'backup' }, 'Hacer copia ahora'),
+    );
+  }
 }
 
 /** Archivos que llegaron con "Compartir" desde WhatsApp u otra app. */
@@ -807,7 +834,7 @@ async function wipe() {
   await lock();
   await Vault.wipe(storage);
   await Vault.wipe(decoyStorage);
-  for (const key of [CAMO_KEY, DECOY_KEY, SOS_KEY, TRIP_KEY, FAILS_KEY]) setPref(key, null);
+  for (const key of [CAMO_KEY, DECOY_KEY, SOS_KEY, TRIP_KEY, FAILS_KEY, BACKUP_KEY]) setPref(key, null);
   // Sin rastros: se eliminan las bases de datos, la caché y el service worker.
   for (const s of [storage, decoyStorage]) {
     await s.close();
@@ -1237,10 +1264,35 @@ function bind() {
         await custody('informe', 'Compartido');
       } catch { /* la persona canceló */ }
     },
-    async backup() {
-      await custody('copia');
-      download(`copia-escudo-${stamp()}.escudo`, await vault.exportBackup(), 'application/json');
-      say('Copia descargada. Guárdala en un lugar seguro; necesitarás tu contraseña para abrirla.', 'ok');
+    async backup(btn) {
+      busy(btn, true, 'Preparando copia…');
+      try {
+        const data = await vault.exportBackup();
+        download(`copia-escudo-${stamp()}.escudo`, data, 'application/json');
+        // La custodia se anota solo si la copia realmente se generó.
+        await custody('copia');
+        setPref(BACKUP_KEY, new Date().toISOString());
+        renderBackupBanner();
+        say('Copia descargada. Guárdala fuera de este celular (en el de un familiar de confianza o en tu correo); necesitarás tu contraseña para abrirla.', 'ok');
+      } finally {
+        busy(btn, false);
+      }
+    },
+    async anchor() {
+      const r = await vault.verify();
+      const last = vault.log[vault.log.length - 1];
+      const text = `Escudo · huella de mi bitácora (${new Date().toLocaleString('es-PE', { timeZone: 'America/Lima' })}): `
+        + `${vault.log.length} registros, huella final ${last ? last.huella : '(vacía)'}${r.ok ? '' : ' (con problemas de integridad)'}. `
+        + 'Guarda este mensaje: sirve para probar que mis registros no se borraron ni cambiaron.';
+      const contacts = trustedContacts();
+      $('#verify-result').replaceChildren(
+        el('span', {}, 'Elige a quién enviarla:'),
+        ...(contacts.length
+          ? contacts.map((c) => el('a', { class: 'link-btn wa', href: whatsappLink(c.numero, text), target: '_blank', rel: 'noopener noreferrer' }, `WhatsApp a ${c.nombre}`))
+          : [el('a', { class: 'link-btn wa', href: 'https://wa.me/?text=' + encodeURIComponent(text), target: '_blank', rel: 'noopener noreferrer' }, 'WhatsApp: elegir a quién')]),
+        el('a', { class: 'link-btn', href: 'sms:?&body=' + encodeURIComponent(text) }, 'SMS: elegir a quién'),
+      );
+      await custody('verificacion', 'Huella enviada a un tercero');
     },
   };
   document.addEventListener('click', async (ev) => {

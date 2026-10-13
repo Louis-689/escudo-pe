@@ -50,7 +50,7 @@ No existía una herramienta abierta, gratuita y pensada para el Perú que ayudar
 | Función | Para qué sirve |
 | --- | --- |
 | **Registrar amenazas** | Fecha y hora, canal (llamada, WhatsApp, SMS, redes, en persona, carta), número o perfil, monto exigido, Yape/Plin/cuenta indicada, mensaje literal y descripción. |
-| **Importar chat de WhatsApp** | Elige el chat exportado (.zip o .txt con sus archivos) y cada mensaje del extorsionador queda registrado con su número, fecha, hora y fotos o audios. Funciona con Android y iPhone, en español e inglés. |
+| **Importar chat de WhatsApp** | En WhatsApp: Exportar chat → **Compartir con Escudo** (o elige el .zip/.txt). Cada mensaje del extorsionador queda registrado con su número, fecha, hora y fotos o audios. Funciona con Android y iPhone, en español e inglés. |
 | **Datos detectados** | En cada mensaje, Escudo detecta números (y su país), cuentas bancarias, CCI, Yape/Plin, billeteras de criptomonedas, enlaces, perfiles, correos, placas de vehículos, montos y señales de riesgo (amenazas de muerte, explosivos, familia, armas, plazos). |
 | **Datos para la Fiscalía** | El informe agrupa cada número y cuenta con cuántas veces aparece, la primera y última fecha y el canal: justo lo que se necesita para pedir, con orden judicial, la identificación de titulares, el registro de llamadas, la geolocalización y el levantamiento del secreto bancario. |
 | **Cadena de custodia** | Cada verificación, informe, paquete, copia o importación queda registrada en la bitácora encadenada, con fecha y hora. El informe incluye espacio para marca, modelo e IMEI del celular. |
@@ -62,9 +62,11 @@ No existía una herramienta abierta, gratuita y pensada para el Perú que ayudar
 | **Paquete de pruebas (ZIP)** | Un solo archivo para la comisaría o el abogado: pruebas originales, informe, `huellas.sha256` y la bitácora completa. Se verifica con `sha256sum -c huellas.sha256`. |
 | **Comprobar un archivo** | Eliges una captura o audio y Escudo te dice si es exactamente una de las pruebas registradas. |
 | **Guía y contactos** | Qué hacer paso a paso y a quién llamar (111, 105, 1818, Dirincri, ALEGRA 1884, Línea 113), con fuente y fecha de verificación. Se puede ver sin abrir la bitácora. |
-| **Salida rápida** | Un botón cierra la app y abre una página inofensiva. La bitácora se bloquea sola si la app queda 2 minutos en segundo plano. |
-| **Modo camuflado** | Cerrada, la app parece una libreta de "Notas". Se abre escribiendo la contraseña en "Buscar"; cualquier otra cosa muestra "No se encontraron notas". |
-| **Copia de seguridad** | Archivo cifrado para guardar en otro teléfono de confianza. Sin la contraseña no sirve. |
+| **Salida rápida** | Un botón cierra la app y abre una página inofensiva. La bitácora se bloquea sola si la app queda 2 minutos en segundo plano; lo que estabas escribiendo (y una grabación en curso) se guarda cifrado y se recupera al volver. |
+| **Contraseña de emergencia** | Si alguien te obliga a abrir Escudo, una segunda contraseña abre una bitácora **vacía y creíble**. Tus pruebas reales quedan ocultas, y "Borrar todo" en esa bitácora no las toca. |
+| **Modo camuflado** | Cerrada, la app parece una libreta de "Notas" (título e ícono incluidos). Se abre escribiendo la contraseña en "Buscar"; cualquier otra cosa muestra "No se encontraron notas". Escribir **sos** abre la emergencia. |
+| **Huella enviada a un tercero** | Envía la huella final de tu bitácora a tu abogado o a un familiar. Si alguien borra o cambia registros después, esa huella lo demuestra. |
+| **Copia de seguridad** | Archivo cifrado para guardar en otro teléfono de confianza. Escudo te recuerda hacerla cada semana y pide al navegador que no borre tus datos. |
 | **Sin internet** | Después de la primera visita funciona sin conexión (PWA). Se puede "instalar" en la pantalla de inicio. |
 
 ## Lo que Escudo no hace (y por qué)

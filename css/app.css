@@ -165,3 +165,6 @@ a.link-btn.wa { border-color: #25d366; }
 .report .firma { margin-top: 48px; }
 .report ol li, .report ul li { margin: 4px 0; }
 #msg, #sos-status, #trip-banner { scroll-margin-top: 72px; }
+.jump { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.jump a { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); text-decoration: none; font-weight: 600; }
+[id] { scroll-margin-top: 64px; }

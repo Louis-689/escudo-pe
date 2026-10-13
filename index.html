@@ -83,6 +83,7 @@
   <!-- Abierto -->
   <main id="view-app" class="view" hidden>
     <p id="trip-banner" class="box warn" hidden></p>
+    <p id="backup-banner" class="box warn" hidden></p>
     <nav class="tabs" role="tablist">
       <button type="button" role="tab" aria-controls="tab-new" data-tab="new" aria-selected="true">Registrar</button>
       <button type="button" role="tab" aria-controls="tab-log" data-tab="log">Bitácora</button>
@@ -166,9 +167,17 @@
     <section id="tab-report" class="tab" hidden>
       <h1>Informe para la denuncia</h1>
       <p>Lleva este informe a la comisaría o al Depincri junto con tu celular.</p>
-      <div class="card">
+      <nav class="jump" aria-label="Ir a">
+        <a href="#form-complaint">⚖️ Denuncia</a>
+        <a href="#form-bank">💸 Bloquear cuenta</a>
+        <a href="#form-police">🚫 Si la Policía no actúa</a>
+        <a href="#evidence-card">📦 Pruebas</a>
+      </nav>
+      <div class="card stack">
         <button type="button" data-action="verify">Comprobar que nada fue alterado</button>
         <p id="verify-result" class="hint" aria-live="polite"></p>
+        <button type="button" data-action="anchor">Enviar la huella de mi bitácora a alguien de confianza</button>
+        <p class="hint small">Si alguien borra o cambia tus registros, esa huella enviada antes lo demuestra. Mándala a tu abogado o a un familiar después de cada amenaza importante.</p>
       </div>
       <div class="card stack">
         <button type="button" class="primary" data-action="report-html">Ver informe para imprimir o guardar en PDF</button>
@@ -176,7 +185,7 @@
         <button type="button" data-action="report-share" hidden>Compartir informe</button>
       </div>
       <p class="hint">El informe incluye lo que escribiste. Compártelo solo con la Policía, la Fiscalía o tu abogado.</p>
-      <div class="card stack">
+      <div class="card stack" id="evidence-card">
         <h2>Paquete de pruebas (ZIP)</h2>
         <p class="hint">Un solo archivo con las pruebas originales, el informe y sus huellas, para entregarlo en la comisaría o a tu abogado. <b>No está cifrado</b>: bórralo de tu celular después de entregarlo.</p>
         <button type="button" data-action="evidence">Descargar paquete de pruebas</button>
